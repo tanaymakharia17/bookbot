@@ -20,4 +20,6 @@ urlpatterns = [
     path("submissions/<uuid:pk>/journal_preview/", views.SubmissionJournalPreviewView.as_view(), name="submission-journal-preview"),
     path("submissions/<uuid:pk>/approve/", views.SubmissionApproveView.as_view(), name="submission-approve"),
     path("submissions/<uuid:pk>/resolve_compliance/", views.SubmissionResolveComplianceView.as_view(), name="submission-resolve-compliance"),
+    path("ledger/", views.LedgerListView.as_view(), name="ledger-list"),
+    path("ledger/<str:entry_id>/", views.LedgerDetailView.as_view(), name="ledger-detail"),
 ]

@@ -15,6 +15,8 @@ from apps.core.tasks import extract_submission
 from apps.services.agent import respond
 from apps.services.extraction import extract
 from apps.services.journal import preview as journal_preview
+from apps.services.ledger import get_entry as get_ledger_entry
+from apps.services.ledger import list_entries as list_ledger_entries
 from apps.services.review import approve as approve_submission
 from apps.services.review import resolve_compliance as resolve_submission_compliance
 from apps.services.plan import (
@@ -296,3 +298,24 @@ class SubmissionResolveComplianceView(APIView):
 
         submission.save()
         return Response({"submission": SubmissionDetailSerializer(submission).data})
+
+
+class LedgerListView(APIView):
+    """List posted journal entries, optionally filtered by client."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(list_ledger_entries(request.query_params.get("client")))
+
+
+class LedgerDetailView(APIView):
+    """Retrieve a single ledger entry with its journal lines."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, entry_id):
+        entry = get_ledger_entry(entry_id)
+        if not entry:
+            return Response({"error": "Ledger entry not found."}, status=404)
+        return Response(entry)
