@@ -80,6 +80,7 @@ services:
       BOOKBOT_API_MODE: ${BOOKBOT_API_MODE:-real}
     ports:
       - "8501:8501"
+      - "8502:8501"
     depends_on:
       - backend
 
