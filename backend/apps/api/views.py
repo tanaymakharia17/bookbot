@@ -8,6 +8,8 @@ from rest_framework.response import Response
 
 from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
+from apps.core.tasks import extract_submission
+from apps.services.extraction import extract
 
 from .serializers import (
     ClientSerializer,
@@ -56,6 +58,13 @@ class SubmissionListView(generics.ListCreateAPIView):
         if self.request.method == "POST":
             return SubmissionCreateSerializer
         return SubmissionListSerializer
+
+    def perform_create(self, serializer):
+        submission = serializer.save()
+        try:
+            extract_submission.delay(str(submission.id))
+        except Exception:  # noqa: BLE001 - broker unavailable: extract inline
+            extract(submission)
 
     def get_queryset(self):
         queryset = Submission.objects.select_related("client").all()

@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from apps.core.constants import VENDOR_HINTS
+from apps.core.fsm import SubmissionFSM
+from apps.core.state import SubmissionState
+from apps.services.sot import build_sot_markdown
+from apps.services.task_seeding import seed_agent_tasks
 
 
 def extract_amount(text: str) -> float | None:
@@ -51,3 +56,77 @@ def recompute_fields(
     total = extract_amount(text) or 1250.00
     payment = "Cash" if "cash" in text.lower() else "Company Credit Card"
     return vendor, category, total, payment
+
+
+def submission_context(submission) -> dict[str, Any]:
+    """A plain mapping used by task seeding / projection."""
+    return {
+        "state": submission.state,
+        "vendor": submission.vendor,
+        "payment_method": submission.payment_method,
+        "raw_input": submission.raw_input,
+        "line_items": submission.line_items or [],
+    }
+
+
+def initial_chat(submission) -> list[dict[str, str]]:
+    items = submission.line_items or []
+    business = sum(li["amount"] for li in items if not li.get("personal"))
+    personal = [li for li in items if li.get("personal")]
+    personal_note = (
+        f"\n\n⚠️ I flagged {len(personal)} item(s) that look personal and excluded them "
+        f"from the reimbursement total."
+        if personal else ""
+    )
+    return [
+        {"role": "agent", "content": f"Files received: {', '.join(submission.file_names or []) or '—'}."},
+        {
+            "role": "agent",
+            "content": (
+                f"I've extracted **{len(items)} line items** from the "
+                f"{submission.vendor or 'document'} file(s), totaling **${business:,.2f}**."
+                f"{personal_note}\n\n"
+                f"Tell me what to change and I'll add it to the pending plan — or attach more "
+                f"documents with the paperclip. Nothing is applied until you execute the plan."
+            ),
+        },
+    ]
+
+
+def ensure_tasks(submission, save: bool = True) -> bool:
+    """Seed the agent checklist for a non-RAW submission that has none."""
+    if submission.state == SubmissionState.RAW or submission.tasks:
+        return False
+    submission.tasks = seed_agent_tasks(submission_context(submission))
+    if submission.state == SubmissionState.COMMITTED:
+        for task in submission.tasks:
+            if task["title"] == "Post the journal entry to the ledger":
+                task["done"] = True
+    if save:
+        submission.save(update_fields=["tasks", "updated_at"])
+    return True
+
+
+def extract(submission, save: bool = True):
+    """Run the stub extractor: RAW -> EXTRACTED, populating the workpaper."""
+    if submission.state != SubmissionState.RAW:
+        ensure_tasks(submission, save=save)
+        return submission
+
+    text = " ".join([submission.raw_input or "", *(submission.file_names or [])])
+    category = ""
+    vendor, category, total, payment = recompute_fields(
+        submission.vendor or "", category, text
+    )
+
+    submission.vendor = vendor
+    submission.payment_method = payment
+    submission.line_items = mock_extract(vendor, category, total)
+    submission.tasks = seed_agent_tasks(submission_context(submission))
+    submission.chat_messages = initial_chat(submission)
+    submission.sot_markdown = build_sot_markdown(submission)
+
+    SubmissionFSM.transition(submission, SubmissionState.EXTRACTED)
+    if save:
+        submission.save()
+    return submission
