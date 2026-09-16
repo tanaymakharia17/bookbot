@@ -14,7 +14,13 @@ from apps.core.state import SubmissionState
 from apps.core.tasks import extract_submission
 from apps.services.agent import respond
 from apps.services.extraction import extract
-from apps.services.plan import stage_files
+from apps.services.plan import (
+    remove_plan_op,
+    stage_files,
+    stage_task_add,
+    stage_task_remove,
+    stage_task_toggle,
+)
 
 from .serializers import (
     ClientSerializer,
@@ -158,3 +164,46 @@ class SubmissionPlanFilesView(APIView):
             "submission": SubmissionDetailSerializer(submission).data,
             "proposed": result["proposed"],
         })
+
+
+class SubmissionPlanTasksView(APIView):
+    """Stage a checklist change: add, toggle, or remove."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        data = request.data
+        if data.get("remove"):
+            result = stage_task_remove(submission, data.get("task_id"))
+        elif data.get("task_id") is not None:
+            result = stage_task_toggle(submission, data.get("task_id"), bool(data.get("done")))
+        else:
+            result = stage_task_add(submission, data.get("title"))
+
+        if result.get("error"):
+            return Response(result)
+
+        submission.save()
+        return Response({"submission": SubmissionDetailSerializer(submission).data})
+
+
+class SubmissionPlanOpView(APIView):
+    """Remove a single staged operation from the pending plan."""
+
+    permission_classes = [AllowAny]
+
+    def delete(self, request, pk, op_id):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        result = remove_plan_op(submission, op_id)
+        if result.get("error"):
+            return Response(result)
+
+        submission.save()
+        return Response({"submission": SubmissionDetailSerializer(submission).data})

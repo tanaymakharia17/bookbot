@@ -79,3 +79,98 @@ def stage_files(submission, files: list[dict[str, Any]]) -> dict[str, Any]:
         _append_chat(submission, "Added to the pending plan:\n\n- " + "\n- ".join(lines))
 
     return {"proposed": proposed, "staged_save": staged_save, "staged_ref": staged_ref}
+
+
+def _guard(submission):
+    if submission.state == SubmissionState.COMMITTED:
+        return {"error": "This submission is posted."}
+    return None
+
+
+def stage_task_add(submission, title: str) -> dict[str, Any]:
+    guard = _guard(submission)
+    if guard:
+        return guard
+    title = (title or "").strip()
+    if not title:
+        return {"error": "Task title cannot be empty."}
+
+    if any(t["title"].lower() == title.lower() for t in project(submission)["tasks"]):
+        return {"error": "That task already exists."}
+
+    plan = submission.pending_plan or empty_plan()
+    submission.pending_plan = plan
+    task = {"id": f"task_{uuid.uuid4().hex[:8]}", "title": title, "done": False, "source": "user"}
+    plan["task_ops"].append({
+        "id": f"op_{uuid.uuid4().hex[:8]}", "type": "add", "task": task,
+        "label": f"Add task: {title}",
+    })
+    return {}
+
+
+def stage_task_toggle(submission, task_id: str, done: bool) -> dict[str, Any]:
+    guard = _guard(submission)
+    if guard:
+        return guard
+
+    plan = submission.pending_plan or empty_plan()
+    submission.pending_plan = plan
+
+    for op in plan["task_ops"]:
+        if op.get("type") == "add" and op["task"]["id"] == task_id:
+            op["task"]["done"] = done
+            return {}
+
+    committed = next((t for t in (submission.tasks or []) if t["id"] == task_id), None)
+    plan["task_ops"] = [
+        o for o in plan["task_ops"]
+        if not (o.get("type") == "set_done" and o.get("task_id") == task_id)
+    ]
+    if committed and committed.get("done") == done:
+        return {}
+    title = committed["title"] if committed else task_id
+    plan["task_ops"].append({
+        "id": f"op_{uuid.uuid4().hex[:8]}", "type": "set_done", "task_id": task_id, "done": done,
+        "label": ("Complete action: " if done else "Reopen action: ") + title,
+    })
+    return {}
+
+
+def stage_task_remove(submission, task_id: str) -> dict[str, Any]:
+    guard = _guard(submission)
+    if guard:
+        return guard
+
+    plan = submission.pending_plan or empty_plan()
+    submission.pending_plan = plan
+
+    staged = next(
+        (o for o in plan["task_ops"] if o.get("type") == "add" and o["task"]["id"] == task_id),
+        None,
+    )
+    if staged:
+        plan["task_ops"] = [o for o in plan["task_ops"] if o is not staged]
+        return {}
+
+    committed = next((t for t in (submission.tasks or []) if t["id"] == task_id), None)
+    if not committed:
+        return {"error": "Task not found."}
+
+    plan["task_ops"] = [o for o in plan["task_ops"] if o.get("task_id") != task_id]
+    plan["task_ops"].append({
+        "id": f"op_{uuid.uuid4().hex[:8]}", "type": "remove", "task_id": task_id,
+        "label": f"Remove task: {committed['title']}",
+    })
+    return {}
+
+
+def remove_plan_op(submission, op_id: str) -> dict[str, Any]:
+    plan = submission.pending_plan or empty_plan()
+    submission.pending_plan = plan
+    if op_id.startswith("file::"):
+        name = op_id.split("::", 1)[1]
+        plan["save_files"] = [n for n in plan["save_files"] if n != name]
+    else:
+        plan["line_item_ops"] = [o for o in plan["line_item_ops"] if o["id"] != op_id]
+        plan["task_ops"] = [o for o in plan["task_ops"] if o["id"] != op_id]
+    return {}

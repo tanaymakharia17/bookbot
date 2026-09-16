@@ -13,4 +13,6 @@ urlpatterns = [
     path("submissions/<uuid:pk>/", views.SubmissionDetailView.as_view(), name="submission-detail"),
     path("submissions/<uuid:pk>/chat/", views.SubmissionChatView.as_view(), name="submission-chat"),
     path("submissions/<uuid:pk>/plan/files/", views.SubmissionPlanFilesView.as_view(), name="submission-plan-files"),
+    path("submissions/<uuid:pk>/plan/tasks/", views.SubmissionPlanTasksView.as_view(), name="submission-plan-tasks"),
+    path("submissions/<uuid:pk>/plan/ops/<str:op_id>/", views.SubmissionPlanOpView.as_view(), name="submission-plan-op"),
 ]
