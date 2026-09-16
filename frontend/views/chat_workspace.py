@@ -38,7 +38,7 @@ def render() -> None:
     _header(sub, client_name)
 
     if sub["state"] == "RAW":
-        _render_processing()
+        _render_processing(api, sub)
         return
 
     left, right = st.columns([2, 3], gap="medium")
@@ -152,17 +152,27 @@ def _header(sub: dict, client_name: str) -> None:
     )
 
 
-def _render_processing() -> None:
+def _render_processing(api, sub: dict) -> None:
     with st.container(border=True):
-        st.markdown("### ⏳ Extracting documents")
+        st.markdown("### ⏳ Reading documents")
         st.markdown(
             "<div class='bb-muted'>The vision model is reading your uploads and building the "
             "Source of Truth. This usually takes a few seconds.</div>",
             unsafe_allow_html=True,
         )
         st.write("")
-        if st.button("Refresh status", type="primary", key="refresh_processing"):
-            st.rerun()
+        _watch_extraction(api, sub["id"])
+
+
+@st.fragment(run_every=3)
+def _watch_extraction(api, submission_id: str) -> None:
+    latest = api.get_submission(submission_id)
+    if latest and latest.get("state") != "RAW":
+        st.rerun(scope="app")
+        return
+    st.caption("Extraction in progress — this page refreshes automatically.")
+    if st.button("Refresh now", type="primary", key="refresh_processing"):
+        st.rerun(scope="app")
 
 
 def _render_sot_pane(sub: dict, client_name: str, threshold: float) -> None:

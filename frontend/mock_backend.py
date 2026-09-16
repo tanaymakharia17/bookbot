@@ -331,6 +331,9 @@ class MockBackend:
     def available_files(self) -> list[str]:
         return []
 
+    def upload_documents(self, submission_id: str, files) -> dict[str, Any]:
+        return {"files": [getattr(f, "name", str(f)) for f in (files or [])]}
+
     def create_submission(self, client_id: str, file_names: list[str], raw_input: str) -> dict[str, Any]:
         if not file_names:
             raise ValueError("At least one file is required.")

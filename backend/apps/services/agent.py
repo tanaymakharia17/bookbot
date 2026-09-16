@@ -65,6 +65,7 @@ def _llm_respond(submission, message: str) -> str:
         tools=TOOL_DEFINITIONS,
         tool_choice="auto",
         temperature=0.2,
+        max_tokens=800,
     )
     choice = completion.choices[0].message
 

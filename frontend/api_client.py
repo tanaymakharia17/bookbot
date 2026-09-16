@@ -35,6 +35,9 @@ class BaseBackend:
     def available_files(self) -> list[str]:
         raise NotImplementedError
 
+    def upload_documents(self, submission_id: str, files) -> dict[str, Any]:
+        raise NotImplementedError
+
     def chat_history(self, submission_id: str) -> list[dict[str, str]]:
         raise NotImplementedError
 
@@ -142,6 +145,27 @@ class RealBackend(BaseBackend):
     def available_files(self) -> list[str]:
         data = self._get("/api/v1/uploads/available/") or {}
         return data.get("files", [])
+
+    def upload_documents(self, submission_id: str, files) -> dict[str, Any]:
+        import requests
+
+        payload = [
+            (
+                "files",
+                (f.name, f.getvalue(), getattr(f, "type", None) or "application/octet-stream"),
+            )
+            for f in files
+        ]
+        if not payload:
+            return {"files": []}
+        resp = requests.post(
+            f"{self.base_url}/api/v1/submissions/{submission_id}/documents/",
+            files=payload,
+            timeout=300,
+        )
+        if resp.status_code >= 400:
+            return {"error": _format_error(resp)}
+        return resp.json()
 
     def chat_history(self, submission_id: str) -> list[dict[str, str]]:
         return self._get(f"/api/v1/submissions/{submission_id}/chat/")

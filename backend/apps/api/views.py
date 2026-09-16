@@ -21,7 +21,20 @@ from apps.services.ledger import get_entry as get_ledger_entry
 from apps.services.ledger import list_entries as list_ledger_entries
 from apps.services.review import approve as approve_submission
 from apps.services.review import resolve_compliance as resolve_submission_compliance
-from apps.services.storage import available_files, import_named_files, save_upload_stream
+from apps.services.storage import (
+    available_files,
+    import_named_files,
+    list_files,
+    save_uploaded_file,
+    save_upload_stream,
+)
+
+
+def _queue_extraction(submission) -> None:
+    try:
+        extract_submission.delay(str(submission.id))
+    except Exception:  # noqa: BLE001 - broker unavailable: extract inline
+        extract(submission)
 from apps.services.plan import (
     discard_plan,
     execute_plan,
@@ -83,10 +96,8 @@ class SubmissionListView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         submission = serializer.save()
         import_named_files(submission.id, submission.file_names or [])
-        try:
-            extract_submission.delay(str(submission.id))
-        except Exception:  # noqa: BLE001 - broker unavailable: extract inline
-            extract(submission)
+        if list_files(submission.id):
+            _queue_extraction(submission)
 
     def get_queryset(self):
         queryset = Submission.objects.select_related("client").all()
@@ -159,6 +170,33 @@ class SubmissionChatView(APIView):
             "reply": reply,
             "submission": SubmissionDetailSerializer(submission).data,
         })
+
+
+class SubmissionDocumentsView(APIView):
+    """Upload the actual document bytes for a submission, then run extraction."""
+
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+        if submission.state == SubmissionState.COMMITTED:
+            return Response({"error": "This submission is posted."})
+
+        saved = [
+            save_uploaded_file(submission.id, f).name
+            for f in request.FILES.getlist("files")
+        ]
+        if saved:
+            submission.file_names = list(
+                dict.fromkeys(list(submission.file_names or []) + saved)
+            )
+            submission.save(update_fields=["file_names", "updated_at"])
+            _queue_extraction(submission)
+
+        return Response({"files": saved, "state": submission.state})
 
 
 class SubmissionPlanFilesView(APIView):

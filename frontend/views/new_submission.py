@@ -111,4 +111,15 @@ def render() -> None:
         st.error(f"Could not create submission: {(sub or {}).get('error', 'unknown error')}")
         return
 
+    if uploaded:
+        try:
+            with st.spinner("Uploading documents for extraction…"):
+                result = api.upload_documents(sub["id"], list(uploaded))
+            if result.get("error"):
+                st.error(f"Document upload failed: {result['error']}")
+                return
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Document upload failed: {exc}")
+            return
+
     go("chat", submission_id=sub["id"])

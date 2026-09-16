@@ -108,20 +108,38 @@ def ensure_tasks(submission, save: bool = True) -> bool:
 
 
 def extract(submission, save: bool = True):
-    """Run the stub extractor: RAW -> EXTRACTED, populating the workpaper."""
+    """Extract a RAW submission: real VLM read when files exist, else stub."""
+    from apps.services import storage, vlm
+
     if submission.state != SubmissionState.RAW:
         ensure_tasks(submission, save=save)
         return submission
 
-    text = " ".join([submission.raw_input or "", *(submission.file_names or [])])
-    category = ""
-    vendor, category, total, payment = recompute_fields(
-        submission.vendor or "", category, text
-    )
+    paths = [
+        storage.submission_dir(submission.id) / name
+        for name in (submission.file_names or [])
+    ]
+    paths = [p for p in paths if p.exists()]
 
-    submission.vendor = vendor
-    submission.payment_method = payment
-    submission.line_items = mock_extract(vendor, category, total)
+    data = None
+    if paths:
+        try:
+            data = vlm.read_documents(paths)
+        except Exception:  # noqa: BLE001 - fall back to the stub on any VLM error
+            data = None
+
+    items = vlm.normalize_line_items(data) if data else []
+    if items:
+        submission.vendor = (data.get("vendor") or "Unknown Vendor").strip() or "Unknown Vendor"
+        submission.payment_method = vlm.normalize_payment(data.get("payment_method") or "")
+        submission.line_items = items
+    else:
+        text = " ".join([submission.raw_input or "", *(submission.file_names or [])])
+        vendor, category, total, payment = recompute_fields(submission.vendor or "", "", text)
+        submission.vendor = vendor
+        submission.payment_method = payment
+        submission.line_items = mock_extract(vendor, category, total)
+
     submission.tasks = seed_agent_tasks(submission_context(submission))
     submission.chat_messages = initial_chat(submission)
     submission.sot_markdown = build_sot_markdown(submission)
