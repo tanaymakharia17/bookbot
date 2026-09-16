@@ -97,6 +97,7 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "UNAUTHENTICATED_USER": None,
+    "COERCE_DECIMAL_TO_STRING": False,
 }
 
 # CORS (open for local development; tighten for production)
