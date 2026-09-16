@@ -74,7 +74,7 @@ services:
       - .env
     environment:
       BOOKBOT_BACKEND_URL: ${BOOKBOT_BACKEND_URL:-http://backend:8000}
-      BOOKBOT_API_MODE: ${BOOKBOT_API_MODE:-hybrid}
+      BOOKBOT_API_MODE: ${BOOKBOT_API_MODE:-real}
     ports:
       - "8501:8501"
     depends_on:

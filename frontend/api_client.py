@@ -81,27 +81,31 @@ class RealBackend(BaseBackend):
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
 
-    def _get(self, path: str, **params):  # pragma: no cover - wired later
+    def _get(self, path: str, **params):
         import requests
 
         resp = requests.get(f"{self.base_url}{path}", params=params, timeout=30)
+        if resp.status_code == 404:
+            return None
         resp.raise_for_status()
         return resp.json()
 
-    def _post(self, path: str, json=None, files=None, data=None):  # pragma: no cover
+    def _post(self, path: str, json=None, files=None, data=None):
         import requests
 
         resp = requests.post(
             f"{self.base_url}{path}", json=json, files=files, data=data, timeout=120
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            return {"error": _format_error(resp)}
         return resp.json()
 
-    def _delete(self, path: str):  # pragma: no cover
+    def _delete(self, path: str):
         import requests
 
         resp = requests.delete(f"{self.base_url}{path}", timeout=30)
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            return {"error": _format_error(resp)}
         return resp.json()
 
     def list_clients(self) -> list[dict[str, Any]]:

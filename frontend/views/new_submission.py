@@ -84,4 +84,8 @@ def render() -> None:
         st.error(f"Could not create submission: {exc}")
         return
 
+    if not sub or sub.get("error") or "id" not in sub:
+        st.error(f"Could not create submission: {(sub or {}).get('error', 'unknown error')}")
+        return
+
     go("chat", submission_id=sub["id"])
