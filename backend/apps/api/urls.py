@@ -19,4 +19,5 @@ urlpatterns = [
     path("submissions/<uuid:pk>/plan/discard/", views.SubmissionPlanDiscardView.as_view(), name="submission-plan-discard"),
     path("submissions/<uuid:pk>/journal_preview/", views.SubmissionJournalPreviewView.as_view(), name="submission-journal-preview"),
     path("submissions/<uuid:pk>/approve/", views.SubmissionApproveView.as_view(), name="submission-approve"),
+    path("submissions/<uuid:pk>/resolve_compliance/", views.SubmissionResolveComplianceView.as_view(), name="submission-resolve-compliance"),
 ]

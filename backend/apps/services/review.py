@@ -53,3 +53,16 @@ def approve(submission) -> dict[str, Any]:
         f"Posted to the ledger — {len(entry['lines'])} lines, debits = credits = ${total:,.2f}.",
     )
     return {"journal_entry": entry}
+
+
+def resolve_compliance(submission) -> dict[str, Any]:
+    if submission.state != SubmissionState.BLOCKED_COMPLIANCE:
+        return {"error": "Submission is not blocked."}
+
+    submission.blocker_resolved = True
+    SubmissionFSM.transition(submission, SubmissionState.NEEDS_REVIEW)
+    _append_chat(
+        submission,
+        "Compliance document received. The submission is unblocked and back in review.",
+    )
+    return {}

@@ -16,6 +16,7 @@ from apps.services.agent import respond
 from apps.services.extraction import extract
 from apps.services.journal import preview as journal_preview
 from apps.services.review import approve as approve_submission
+from apps.services.review import resolve_compliance as resolve_submission_compliance
 from apps.services.plan import (
     discard_plan,
     execute_plan,
@@ -277,3 +278,21 @@ class SubmissionApproveView(APIView):
             "submission": SubmissionDetailSerializer(submission).data,
             "journal_entry": result["journal_entry"],
         })
+
+
+class SubmissionResolveComplianceView(APIView):
+    """Mark a compliance blocker resolved and return the submission to review."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        result = resolve_submission_compliance(submission)
+        if result.get("error"):
+            return Response(result)
+
+        submission.save()
+        return Response({"submission": SubmissionDetailSerializer(submission).data})
