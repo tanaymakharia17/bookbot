@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from config import BACKEND_URL, USE_MOCK
+from config import API_MODE, BACKEND_URL
 from mock_backend import MockBackend
 
 
@@ -18,6 +18,9 @@ class BaseBackend:
         raise NotImplementedError
 
     def get_client(self, client_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
     def list_submissions(self, client_id: str, state_filter: str | None = None) -> list[dict[str, Any]]:
@@ -107,6 +110,17 @@ class RealBackend(BaseBackend):
     def get_client(self, client_id: str) -> dict[str, Any] | None:
         return self._get(f"/api/v1/clients/{client_id}/")
 
+    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
+        import requests
+
+        payload: dict[str, Any] = {"name": name}
+        if capex_threshold is not None:
+            payload["capex_threshold"] = capex_threshold
+        resp = requests.post(f"{self.base_url}/api/v1/clients/", json=payload, timeout=30)
+        if resp.status_code >= 400:
+            return {"error": _format_error(resp)}
+        return resp.json()
+
     def list_submissions(self, client_id: str, state_filter: str | None = None) -> list[dict[str, Any]]:
         params = {"client": client_id}
         if state_filter and state_filter != "all":
@@ -168,8 +182,47 @@ class RealBackend(BaseBackend):
 _api: BaseBackend | None = None
 
 
+class HybridBackend(MockBackend):
+    """Clients hit the Django API; everything else stays on the mock."""
+
+    def __init__(self, base_url: str) -> None:
+        super().__init__()
+        self._real = RealBackend(base_url)
+
+    def list_clients(self) -> list[dict[str, Any]]:
+        return self._real.list_clients()
+
+    def get_client(self, client_id: str) -> dict[str, Any] | None:
+        return self._real.get_client(client_id)
+
+    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
+        return self._real.create_client(name, capex_threshold)
+
+
+def _format_error(resp) -> str:
+    try:
+        data = resp.json()
+    except Exception:  # noqa: BLE001
+        return resp.text or f"HTTP {resp.status_code}"
+    if isinstance(data, dict):
+        messages = []
+        for value in data.values():
+            if isinstance(value, list):
+                messages.extend(str(v) for v in value)
+            else:
+                messages.append(str(value))
+        if messages:
+            return " ".join(messages)
+    return str(data)
+
+
 def get_api() -> BaseBackend:
     global _api
     if _api is None:
-        _api = MockBackend() if USE_MOCK else RealBackend(BACKEND_URL)
+        if API_MODE == "real":
+            _api = RealBackend(BACKEND_URL)
+        elif API_MODE == "hybrid":
+            _api = HybridBackend(BACKEND_URL)
+        else:
+            _api = MockBackend()
     return _api

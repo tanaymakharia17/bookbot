@@ -12,13 +12,13 @@ def render() -> None:
     try:
         clients = api.list_clients()
     except Exception as exc:  # noqa: BLE001
-        st.error(f"Could not load clients: {exc}")
+        st.error(f"Could not load companies: {exc}")
         return
 
     page_header(
         "Firm Workspace",
         "Client Businesses",
-        "Select a business to review its submissions or start a new one.",
+        "Select a business to review its submissions, or add a new one.",
     )
 
     total_subs = sum(c.get("submission_count", 0) for c in clients)
@@ -36,14 +36,21 @@ def render() -> None:
         st.markdown(metric("Blocked", str(total_blocked)), unsafe_allow_html=True)
 
     st.write("")
-    left, right = st.columns([4, 1], vertical_alignment="bottom")
+    left, mid, right = st.columns([3, 1, 1], vertical_alignment="bottom")
     with left:
         query = st.text_input(
             "Search clients", placeholder="Search businesses…", label_visibility="collapsed"
         )
-    with right:
+    with mid:
         if st.button("📒 General Ledger", use_container_width=True, key="open_ledger"):
             go("ledger")
+    with right:
+        if st.button("+ New Company", type="primary", use_container_width=True, key="new_company"):
+            st.session_state["_show_new_company"] = True
+
+    flash = st.session_state.pop("_flash", None)
+    if flash:
+        st.success(flash)
 
     if query:
         clients = [c for c in clients if query.lower() in c["name"].lower()]
@@ -51,11 +58,14 @@ def render() -> None:
     section("Businesses")
 
     if not clients:
-        empty_state("🔍", "No clients found", "Try a different search term.")
+        empty_state("🏢", "No companies yet", "Click “+ New Company” to add your first business.")
+        _maybe_open_dialog(api)
         return
 
     for client in clients:
         _client_row(client)
+
+    _maybe_open_dialog(api)
 
 
 def _client_row(client: dict) -> None:
@@ -84,9 +94,46 @@ def _client_row(client: dict) -> None:
             st.markdown("<div class='bb-muted'>subs</div>", unsafe_allow_html=True)
 
         with cols[3]:
-            st.markdown(f"<span class='bb-muted'>CapEx</span>", unsafe_allow_html=True)
+            st.markdown("<span class='bb-muted'>CapEx</span>", unsafe_allow_html=True)
             st.markdown(f"**${client.get('capex_threshold', 2500):,.0f}**")
 
         with cols[4]:
             if st.button("Open →", key=f"client_{client['id']}", use_container_width=True, type="primary"):
                 go("submissions", client_id=client["id"])
+
+
+def _maybe_open_dialog(api) -> None:
+    if st.session_state.get("_show_new_company"):
+        _new_company_dialog(api)
+
+
+@st.dialog("New company")
+def _new_company_dialog(api) -> None:
+    name = st.text_input("Company name", placeholder="e.g. Apex Retail Inc.")
+    threshold = st.number_input(
+        "CapEx threshold ($)",
+        min_value=0.0,
+        value=2500.0,
+        step=100.0,
+        format="%.2f",
+        help="Items at or above this amount are capitalized (IRS de minimis safe harbor).",
+    )
+
+    st.write("")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Create", type="primary", use_container_width=True, key="create_company"):
+            if not name.strip():
+                st.error("Company name is required.")
+                return
+            result = api.create_client(name.strip(), threshold)
+            if result.get("error"):
+                st.error(result["error"])
+                return
+            st.session_state["_flash"] = f"Company “{result['name']}” created."
+            st.session_state["_show_new_company"] = False
+            st.rerun()
+    with c2:
+        if st.button("Cancel", use_container_width=True, key="cancel_company"):
+            st.session_state["_show_new_company"] = False
+            st.rerun()

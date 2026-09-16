@@ -290,6 +290,24 @@ class MockBackend:
         client = self.clients.get(client_id)
         return dict(client) if client else None
 
+    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
+        name = (name or "").strip()
+        if not name:
+            return {"error": "Company name is required."}
+        if any(c["name"].lower() == name.lower() for c in self.clients.values()):
+            return {"error": "A company with this name already exists."}
+        client_id = _uid()
+        client = {
+            "id": client_id,
+            "name": name,
+            "capex_threshold": float(capex_threshold if capex_threshold is not None else 2500.0),
+            "submission_count": 0,
+            "last_activity": "",
+            "counts": {},
+        }
+        self.clients[client_id] = client
+        return client
+
     # ------------------------------------------------------------------
     # Submissions
     # ------------------------------------------------------------------

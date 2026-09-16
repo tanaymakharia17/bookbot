@@ -1,4 +1,8 @@
 import os
 
 BACKEND_URL = os.getenv("BOOKBOT_BACKEND_URL", "http://localhost:8000")
-USE_MOCK = os.getenv("BOOKBOT_USE_MOCK", "true").lower() == "true"
+
+# mock   -> in-memory only
+# hybrid -> implemented APIs hit Django, the rest stay mock
+# real   -> everything hits Django
+API_MODE = os.getenv("BOOKBOT_API_MODE", "mock").lower()
