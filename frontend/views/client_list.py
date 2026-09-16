@@ -72,7 +72,7 @@ def _client_row(client: dict) -> None:
     counts = client.get("counts", {})
 
     with st.container(border=True):
-        cols = st.columns([3, 2.2, 0.9, 1.1, 0.9], vertical_alignment="center")
+        cols = st.columns([3, 2.2, 1, 1], vertical_alignment="center")
 
         with cols[0]:
             st.markdown(f"<div class='bb-client-name'>{client['name']}</div>", unsafe_allow_html=True)
@@ -94,10 +94,6 @@ def _client_row(client: dict) -> None:
             st.markdown("<div class='bb-muted'>subs</div>", unsafe_allow_html=True)
 
         with cols[3]:
-            st.markdown("<span class='bb-muted'>CapEx</span>", unsafe_allow_html=True)
-            st.markdown(f"**${client.get('capex_threshold', 2500):,.0f}**")
-
-        with cols[4]:
             if st.button("Open →", key=f"client_{client['id']}", use_container_width=True, type="primary"):
                 go("submissions", client_id=client["id"])
 
@@ -110,14 +106,6 @@ def _maybe_open_dialog(api) -> None:
 @st.dialog("New company")
 def _new_company_dialog(api) -> None:
     name = st.text_input("Company name", placeholder="e.g. Apex Retail Inc.")
-    threshold = st.number_input(
-        "CapEx threshold ($)",
-        min_value=0.0,
-        value=2500.0,
-        step=100.0,
-        format="%.2f",
-        help="Items at or above this amount are capitalized (IRS de minimis safe harbor).",
-    )
 
     st.write("")
     c1, c2 = st.columns(2)
@@ -126,7 +114,7 @@ def _new_company_dialog(api) -> None:
             if not name.strip():
                 st.error("Company name is required.")
                 return
-            result = api.create_client(name.strip(), threshold)
+            result = api.create_client(name.strip())
             if result.get("error"):
                 st.error(result["error"])
                 return

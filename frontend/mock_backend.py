@@ -19,6 +19,8 @@ import uuid
 from datetime import date
 from typing import Any
 
+from config import DEFAULT_CAPEX_THRESHOLD
+
 
 def _uid() -> str:
     return uuid.uuid4().hex[:8]
@@ -104,17 +106,16 @@ def _empty_plan() -> dict:
     return {"save_files": [], "line_item_ops": [], "task_ops": []}
 
 
-def _empty_client(client_id: str, name: str, threshold: float) -> dict:
-    return {"id": client_id, "name": name, "capex_threshold": threshold,
-            "submission_count": 0, "last_activity": ""}
+def _empty_client(client_id: str, name: str) -> dict:
+    return {"id": client_id, "name": name, "submission_count": 0, "last_activity": ""}
 
 
 CLIENTS = [
-    _empty_client("c1a2b3", "Apex Retail Inc.", 2500.00),
-    _empty_client("c2b3c4", "Coastal Cafe LLC", 1500.00),
-    _empty_client("c3c4d5", "Greenway Landscaping", 2500.00),
-    _empty_client("c4d5e6", "Brightside Marketing Co.", 2000.00),
-    _empty_client("c5e6f7", "Urban Dental Group", 2500.00),
+    _empty_client("c1a2b3", "Apex Retail Inc."),
+    _empty_client("c2b3c4", "Coastal Cafe LLC"),
+    _empty_client("c3c4d5", "Greenway Landscaping"),
+    _empty_client("c4d5e6", "Brightside Marketing Co."),
+    _empty_client("c5e6f7", "Urban Dental Group"),
 ]
 
 
@@ -290,7 +291,7 @@ class MockBackend:
         client = self.clients.get(client_id)
         return dict(client) if client else None
 
-    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
+    def create_client(self, name: str) -> dict[str, Any]:
         name = (name or "").strip()
         if not name:
             return {"error": "Company name is required."}
@@ -300,7 +301,6 @@ class MockBackend:
         client = {
             "id": client_id,
             "name": name,
-            "capex_threshold": float(capex_threshold if capex_threshold is not None else 2500.0),
             "submission_count": 0,
             "last_activity": "",
             "counts": {},
@@ -424,7 +424,7 @@ class MockBackend:
             return f"Added to the plan: exclude {len(matches)} personal item(s). It applies when you execute the plan."
 
         if any(w in m for w in ["capitalize", "fixed asset", "reclass", "depreciat"]):
-            threshold = self.clients[sub["client_id"]].get("capex_threshold", 2500.00)
+            threshold = DEFAULT_CAPEX_THRESHOLD
             matches = [li for li in items if not li["personal"] and li["amount"] >= threshold]
             if not matches:
                 return f"No line items reach the ${threshold:,.2f} CapEx threshold."
@@ -775,7 +775,7 @@ class MockBackend:
         business = [li for li in proj["line_items"] if not li["personal"]]
         if not business:
             return None
-        threshold = self.clients[sub["client_id"]].get("capex_threshold", 2500.00)
+        threshold = DEFAULT_CAPEX_THRESHOLD
         lines, debit, credit = self._build_journal(proj, business, threshold)
         return {
             "lines": lines,
@@ -849,7 +849,7 @@ class MockBackend:
         if not business:
             return {"error": "No business line items remain after exclusions."}
 
-        threshold = self.clients[sub["client_id"]].get("capex_threshold", 2500.00)
+        threshold = DEFAULT_CAPEX_THRESHOLD
         lines, debit, credit = self._build_journal(sub, business, threshold)
         if abs(debit - credit) > 0.001:
             return {"error": f"Double-entry violation: debits {debit:.2f} ≠ credits {credit:.2f}."}
@@ -924,7 +924,7 @@ class MockBackend:
             titles.append("Exclude personal items from reimbursement")
 
         client_id = sub.get("client_id")
-        threshold = self.clients.get(client_id, {}).get("capex_threshold", 2500.00)
+        threshold = DEFAULT_CAPEX_THRESHOLD
         if any((not li.get("personal")) and li["amount"] >= threshold for li in items):
             titles.append("Record capitalized asset in fixed-asset register")
 

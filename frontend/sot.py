@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def build_sot_markdown(sub: dict, client_name: str = "", capex_threshold: float = 2500.0) -> str:
+def build_sot_markdown(sub: dict, client_name: str = "", threshold: float = 2500.0) -> str:
     items = sub.get("line_items", [])
     rows = [
         "| Line # | Description | Qty | Unit Price | Total Amount | Category |",
@@ -15,7 +15,7 @@ def build_sot_markdown(sub: dict, client_name: str = "", capex_threshold: float 
         if li.get("personal"):
             desc = f"~~{desc}~~"
             category = "Personal — excluded"
-        elif li["amount"] >= capex_threshold:
+        elif li["amount"] >= threshold:
             category = f"{category} · capitalizable"
         rows.append(
             f"| {i} | {desc} | {li['qty']} | ${li['unit_price']:,.2f} | "

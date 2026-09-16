@@ -3,10 +3,10 @@
     { "name": "Default Firm" }
   ],
   "clients": [
-    { "name": "Apex Retail Inc.", "capex_threshold": 2500.00 },
-    { "name": "Coastal Cafe LLC", "capex_threshold": 1500.00 },
-    { "name": "Greenway Landscaping", "capex_threshold": 2500.00 },
-    { "name": "Brightside Marketing Co.", "capex_threshold": 2000.00 },
-    { "name": "Urban Dental Group", "capex_threshold": 2500.00 }
+    { "name": "Apex Retail Inc." },
+    { "name": "Coastal Cafe LLC" },
+    { "name": "Greenway Landscaping" },
+    { "name": "Brightside Marketing Co." },
+    { "name": "Urban Dental Group" }
   ]
 }

@@ -6,6 +6,7 @@ from components import sot_document, tasks as tasks_component
 from components.status_badge import badge
 from components.tables import balance_banner, journal_html, line_items_html
 from components.ui import section
+from config import DEFAULT_CAPEX_THRESHOLD
 from sot import build_sot_markdown
 from state import go
 
@@ -27,7 +28,7 @@ def render() -> None:
 
     client = api.get_client(sub["client_id"])
     client_name = client["name"] if client else "Unknown"
-    threshold = client.get("capex_threshold", 2500.0) if client else 2500.0
+    threshold = DEFAULT_CAPEX_THRESHOLD
 
     if st.button("← Back to submissions", key="back_to_subs_chat"):
         st.session_state.pop("_staged_files", None)

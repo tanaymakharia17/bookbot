@@ -11,6 +11,6 @@ class CpaFirmAdmin(admin.ModelAdmin):
 
 @admin.register(ClientAccount)
 class ClientAccountAdmin(admin.ModelAdmin):
-    list_display = ("client_name", "firm", "capex_threshold", "created_at")
+    list_display = ("client_name", "firm", "created_at")
     list_filter = ("firm",)
     search_fields = ("client_name",)

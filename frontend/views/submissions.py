@@ -36,7 +36,7 @@ def render() -> None:
     page_header(
         f"Firm Workspace / {client['name']}",
         client["name"],
-        f"CapEx threshold ${client.get('capex_threshold', 2500):,.2f}",
+        "Submissions for this business.",
     )
 
     all_subs = api.list_submissions(client_id)

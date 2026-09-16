@@ -20,7 +20,7 @@ class BaseBackend:
     def get_client(self, client_id: str) -> dict[str, Any] | None:
         raise NotImplementedError
 
-    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
+    def create_client(self, name: str) -> dict[str, Any]:
         raise NotImplementedError
 
     def list_submissions(self, client_id: str, state_filter: str | None = None) -> list[dict[str, Any]]:
@@ -110,13 +110,10 @@ class RealBackend(BaseBackend):
     def get_client(self, client_id: str) -> dict[str, Any] | None:
         return self._get(f"/api/v1/clients/{client_id}/")
 
-    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
+    def create_client(self, name: str) -> dict[str, Any]:
         import requests
 
-        payload: dict[str, Any] = {"name": name}
-        if capex_threshold is not None:
-            payload["capex_threshold"] = capex_threshold
-        resp = requests.post(f"{self.base_url}/api/v1/clients/", json=payload, timeout=30)
+        resp = requests.post(f"{self.base_url}/api/v1/clients/", json={"name": name}, timeout=30)
         if resp.status_code >= 400:
             return {"error": _format_error(resp)}
         return resp.json()
@@ -195,8 +192,8 @@ class HybridBackend(MockBackend):
     def get_client(self, client_id: str) -> dict[str, Any] | None:
         return self._real.get_client(client_id)
 
-    def create_client(self, name: str, capex_threshold: float | None = None) -> dict[str, Any]:
-        return self._real.create_client(name, capex_threshold)
+    def create_client(self, name: str) -> dict[str, Any]:
+        return self._real.create_client(name)
 
 
 def _format_error(resp) -> str:

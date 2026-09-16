@@ -18,7 +18,6 @@ class ClientSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "capex_threshold",
             "submission_count",
             "last_activity",
             "counts",

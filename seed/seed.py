@@ -41,8 +41,6 @@ from django.conf import settings  # noqa: E402
 
 from apps.core.models import ClientAccount, CpaFirm  # noqa: E402
 
-DEFAULT_THRESHOLD = 2500.00
-
 
 def get_default_firm() -> CpaFirm:
     firm, _ = CpaFirm.objects.get_or_create(firm_name=settings.DEFAULT_FIRM_NAME)
@@ -61,7 +59,6 @@ def seed_clients(data: dict) -> None:
         obj, created = ClientAccount.objects.get_or_create(
             firm=firm,
             client_name=row["name"],
-            defaults={"capex_threshold": row.get("capex_threshold", DEFAULT_THRESHOLD)},
         )
         print(f"  client {'created' if created else 'exists '}  {obj.client_name}")
 
