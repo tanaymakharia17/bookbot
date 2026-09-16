@@ -1,8 +1,10 @@
 """API views."""
 import uuid as uuid_lib
 
+from django.http import HttpResponse
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -19,7 +21,7 @@ from apps.services.ledger import get_entry as get_ledger_entry
 from apps.services.ledger import list_entries as list_ledger_entries
 from apps.services.review import approve as approve_submission
 from apps.services.review import resolve_compliance as resolve_submission_compliance
-from apps.services.storage import available_files, import_named_files
+from apps.services.storage import available_files, import_named_files, save_upload_stream
 from apps.services.plan import (
     discard_plan,
     execute_plan,
@@ -335,3 +337,48 @@ class AvailableFilesView(APIView):
 
     def get(self, request):
         return Response({"files": available_files()})
+
+
+_UPLOAD_FORM = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Bookbot upload</title>
+<style>body{{font-family:system-ui,sans-serif;background:#F5F7FA;color:#101828;padding:40px}}
+.card{{max-width:560px;margin:0 auto;background:#fff;border:1px solid #E4E7EC;border-radius:12px;padding:24px}}
+h1{{font-size:1.2rem;margin:0 0 6px}}p{{color:#667085;font-size:.9rem}}
+input[type=file]{{margin:14px 0;display:block}}
+button{{background:#1570EF;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer}}
+a{{color:#1570EF}}</style></head>
+<body><div class="card">
+<h1>Upload documents</h1>
+<p>Files land in the Bookbot staging area. After uploading, pick them in the app under
+<b>“Can't upload? Attach files already on the server”</b>.</p>
+<form method="post" enctype="multipart/form-data">
+  <input type="file" name="file" multiple required>
+  <button type="submit">Upload</button>
+</form>
+<p style="margin-top:16px"><a href="/api/v1/uploads/">Upload more</a></p>
+</div></body></html>"""
+
+
+class UploadPageView(APIView):
+    """Browser upload page served by Django (bypasses Streamlit's upload endpoint)."""
+
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        return HttpResponse(_UPLOAD_FORM, content_type="text/html")
+
+    def post(self, request):
+        saved = [save_upload_stream(f).name for f in request.FILES.getlist("file")]
+        if request.query_params.get("json"):
+            return Response({"saved": saved})
+        if not saved:
+            body = "<p>No file received.</p>"
+        else:
+            body = "<p>Uploaded: <b>" + ", ".join(saved) + "</b></p>"
+        return HttpResponse(
+            f"<html><body style='font-family:system-ui;padding:40px'>{body}"
+            "<p><a href='/api/v1/uploads/'>Upload more</a> · "
+            "<a href='/api/v1/uploads/available/'>List staged files</a></p></body></html>",
+            content_type="text/html",
+        )

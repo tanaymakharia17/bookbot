@@ -2,6 +2,7 @@ import streamlit as st
 
 from api_client import get_api
 from components.ui import page_header
+from config import BACKEND_PUBLIC_URL
 from state import go
 
 
@@ -52,13 +53,18 @@ def render() -> None:
     except Exception:  # noqa: BLE001
         server_files = []
     picked: list[str] = []
-    if server_files:
-        with st.expander("Can't upload? Attach files already on the server"):
-            st.markdown(
-                "<div class='bb-muted'>Useful when the browser upload is blocked by a proxy.</div>",
-                unsafe_allow_html=True,
-            )
-            picked = st.multiselect("Server files", server_files, key="server_files_pick")
+    with st.expander("Upload blocked by a proxy? Use a fallback", expanded=not server_files):
+        st.markdown(
+            f"<div class='bb-muted'>1. Open the upload page: "
+            f"<a href='{BACKEND_PUBLIC_URL}/api/v1/uploads/' target='_blank'>"
+            f"{BACKEND_PUBLIC_URL}/api/v1/uploads/</a><br>"
+            "2. Upload your files there, then pick them below.</div>",
+            unsafe_allow_html=True,
+        )
+        if server_files:
+            picked = st.multiselect("Server / staged files", server_files, key="server_files_pick")
+        else:
+            st.caption("No staged files yet — upload some via the link above.")
 
     st.write("")
     st.markdown("**Context**")
