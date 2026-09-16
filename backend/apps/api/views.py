@@ -15,6 +15,7 @@ from apps.core.tasks import extract_submission
 from apps.services.agent import respond
 from apps.services.extraction import extract
 from apps.services.journal import preview as journal_preview
+from apps.services.review import approve as approve_submission
 from apps.services.plan import (
     discard_plan,
     execute_plan,
@@ -255,3 +256,24 @@ class SubmissionJournalPreviewView(APIView):
         if not submission:
             return Response({"error": "Submission not found."})
         return Response(journal_preview(submission) or {})
+
+
+class SubmissionApproveView(APIView):
+    """Approve the submission and post its journal entry to the ledger."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        result = approve_submission(submission)
+        if result.get("error"):
+            return Response(result)
+
+        submission.save()
+        return Response({
+            "submission": SubmissionDetailSerializer(submission).data,
+            "journal_entry": result["journal_entry"],
+        })
