@@ -1,0 +1,80 @@
+{
+  "submissions": [
+    {
+      "id": "11111111-1111-1111-1111-111111111101",
+      "client": "Apex Retail Inc.",
+      "state": "NEEDS_REVIEW",
+      "vendor": "Target",
+      "payment_method": "Company Credit Card",
+      "channel": "Portal Upload",
+      "raw_input": "Office supplies run plus a vacuum I bought for home.",
+      "file_names": ["target_receipt.pdf"],
+      "line_items": [
+        { "description": "Printer Paper (10 reams)", "qty": 1, "unit_price": 89.0, "amount": 89.0, "category": "Office Supplies", "personal": false },
+        { "description": "Desk Organizer Set", "qty": 2, "unit_price": 35.0, "amount": 70.0, "category": "Office Supplies", "personal": false },
+        { "description": "Dyson Vacuum V15", "qty": 1, "unit_price": 350.0, "amount": 350.0, "category": "Uncategorized", "personal": false }
+      ]
+    },
+    {
+      "id": "11111111-1111-1111-1111-111111111102",
+      "client": "Apex Retail Inc.",
+      "state": "BLOCKED_COMPLIANCE",
+      "vendor": "Apex Design Studio UK",
+      "payment_method": "Wire Transfer",
+      "channel": "Email Ingest",
+      "raw_input": "Invoice from UK design agency for rebranding work, plus the international wire fee.",
+      "file_names": ["uk_invoice_9903.pdf"],
+      "blocker": "Missing Form W-8BEN-E for foreign vendor.",
+      "line_items": [
+        { "description": "Brand Redesign Phase 1", "qty": 1, "unit_price": 3275.0, "amount": 3275.0, "category": "Professional Fees", "personal": false },
+        { "description": "International Wire Fee", "qty": 1, "unit_price": 45.0, "amount": 45.0, "category": "Uncategorized", "personal": false }
+      ]
+    },
+    {
+      "id": "11111111-1111-1111-1111-111111111103",
+      "client": "Coastal Cafe LLC",
+      "state": "COMMITTED",
+      "vendor": "Sysco Foods",
+      "payment_method": "Company Debit Card",
+      "channel": "Portal Upload",
+      "raw_input": "Monthly food supply order.",
+      "file_names": ["sysco_invoice.pdf"],
+      "line_items": [
+        { "description": "Coffee Beans (5 lb bags)", "qty": 10, "unit_price": 45.0, "amount": 450.0, "category": "Meals", "personal": false },
+        { "description": "Pastry Flour (50 lb)", "qty": 4, "unit_price": 38.0, "amount": 152.0, "category": "Meals", "personal": false },
+        { "description": "Dairy Mix", "qty": 20, "unit_price": 22.5, "amount": 450.0, "category": "Meals", "personal": false },
+        { "description": "Paper Cups (1000 ct)", "qty": 5, "unit_price": 89.0, "amount": 445.0, "category": "Office Supplies", "personal": false }
+      ],
+      "journal_entry": {
+        "id": "je_seed_1001",
+        "transaction_date": "2026-09-14",
+        "lines": [
+          { "account_code": "6150", "account_name": "Meals & Entertainment", "entry_type": "DEBIT", "amount": 1052.0, "description": "Coffee, flour, dairy" },
+          { "account_code": "6120", "account_name": "Office Supplies", "entry_type": "DEBIT", "amount": 445.0, "description": "Paper cups" },
+          { "account_code": "2010", "account_name": "Company Debit Card", "entry_type": "CREDIT", "amount": 1497.0, "description": "Total payment" }
+        ]
+      }
+    },
+    {
+      "id": "11111111-1111-1111-1111-111111111104",
+      "client": "Brightside Marketing Co.",
+      "state": "COMMITTED",
+      "vendor": "Google LLC",
+      "payment_method": "Company Credit Card",
+      "channel": "Portal Upload",
+      "raw_input": "Annual Google Workspace renewal for the team, 12 seats.",
+      "file_names": ["google_invoice.pdf"],
+      "line_items": [
+        { "description": "Workspace Business Plus (12 seats)", "qty": 12, "unit_price": 240.0, "amount": 2880.0, "category": "Software", "personal": false }
+      ],
+      "journal_entry": {
+        "id": "je_seed_1002",
+        "transaction_date": "2026-09-16",
+        "lines": [
+          { "account_code": "1500", "account_name": "Fixed Assets", "entry_type": "DEBIT", "amount": 2880.0, "description": "Annual subscription above threshold" },
+          { "account_code": "2010", "account_name": "Company Credit Card", "entry_type": "CREDIT", "amount": 2880.0, "description": "Total payment" }
+        ]
+      }
+    }
+  ]
+}
