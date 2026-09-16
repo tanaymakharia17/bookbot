@@ -13,7 +13,7 @@ from apps.core.services import get_default_firm
 from apps.core.state import SubmissionState
 from apps.core.tasks import extract_submission
 from apps.services.agent import respond
-from apps.services.extraction import extract
+from apps.services.extraction import ensure_tasks, extract
 from apps.services.journal import preview as journal_preview
 from apps.services.ledger import get_entry as get_ledger_entry
 from apps.services.ledger import list_entries as list_ledger_entries
@@ -108,6 +108,11 @@ class SubmissionDetailView(generics.RetrieveAPIView):
     serializer_class = SubmissionDetailSerializer
     permission_classes = [AllowAny]
     queryset = Submission.objects.select_related("client").all()
+
+    def retrieve(self, request, *args, **kwargs):
+        submission = self.get_object()
+        ensure_tasks(submission)
+        return Response(self.get_serializer(submission).data)
 
 
 class SubmissionChatView(APIView):

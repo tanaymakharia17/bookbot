@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
+from apps.services.projection import plan_labels, project
 
 
 class ClientSerializer(serializers.ModelSerializer):
@@ -100,6 +101,9 @@ class SubmissionCreateSerializer(serializers.ModelSerializer):
 class SubmissionDetailSerializer(serializers.ModelSerializer):
     """Full submission detail, including the JSON workpaper fields."""
 
+    projected = serializers.SerializerMethodField()
+    plan_labels = serializers.SerializerMethodField()
+
     class Meta:
         model = Submission
         fields = [
@@ -117,8 +121,18 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
             "tasks",
             "pending_plan",
             "journal_entry",
+            "chat_messages",
             "blocker",
+            "blocker_resolved",
+            "projected",
+            "plan_labels",
             "created_at",
             "updated_at",
             "approved_at",
         ]
+
+    def get_projected(self, obj) -> dict:
+        return project(obj)
+
+    def get_plan_labels(self, obj) -> list:
+        return plan_labels(obj.pending_plan)
