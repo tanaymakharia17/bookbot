@@ -95,3 +95,30 @@ class SubmissionCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         client = ClientAccount.objects.get(id=validated_data.pop("client_id"))
         return Submission.objects.create(client=client, **validated_data)
+
+
+class SubmissionDetailSerializer(serializers.ModelSerializer):
+    """Full submission detail, including the JSON workpaper fields."""
+
+    class Meta:
+        model = Submission
+        fields = [
+            "id",
+            "client_id",
+            "state",
+            "vendor",
+            "payment_method",
+            "channel",
+            "raw_input",
+            "sot_markdown",
+            "file_names",
+            "reference_files",
+            "line_items",
+            "tasks",
+            "pending_plan",
+            "journal_entry",
+            "blocker",
+            "created_at",
+            "updated_at",
+            "approved_at",
+        ]

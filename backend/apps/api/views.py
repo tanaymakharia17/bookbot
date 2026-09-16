@@ -12,6 +12,7 @@ from apps.core.services import get_default_firm
 from .serializers import (
     ClientSerializer,
     SubmissionCreateSerializer,
+    SubmissionDetailSerializer,
     SubmissionListSerializer,
 )
 
@@ -72,3 +73,11 @@ class SubmissionListView(generics.ListCreateAPIView):
             queryset = queryset.filter(state=state)
 
         return queryset
+
+
+class SubmissionDetailView(generics.RetrieveAPIView):
+    """Retrieve a single submission with its full workpaper data."""
+
+    serializer_class = SubmissionDetailSerializer
+    permission_classes = [AllowAny]
+    queryset = Submission.objects.select_related("client").all()
