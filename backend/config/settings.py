@@ -109,6 +109,7 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 600
 
 # Bookbot
+DEFAULT_FIRM_NAME = os.environ.get("DEFAULT_FIRM_NAME", "Default Firm")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 VLM_MODEL = os.environ.get("VLM_MODEL", "anthropic/claude-3.5-sonnet")
