@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 SEED_DIR = Path(__file__).resolve().parent
+SEED_FILES_DIR = SEED_DIR / "files"
 
 
 def _find_backend() -> Path:
@@ -92,6 +93,21 @@ def seed_submissions(data: dict) -> None:
         )
         label = obj.vendor or obj.state
         print(f"  submission {'created' if created else 'updated'}  {label}")
+
+        for name in row.get("file_names", []):
+            _materialise_file(obj.id, name)
+
+
+def _materialise_file(submission_id, name: str) -> None:
+    """Copy a sample document into media/submissions/<id>/ (or a placeholder)."""
+    from apps.services.storage import save_bytes
+
+    source = SEED_FILES_DIR / name
+    if source.exists():
+        content = source.read_bytes()
+    else:
+        content = f"[seed placeholder for {name}]\n".encode()
+    save_bytes(submission_id, name, content)
 
 
 def main() -> None:

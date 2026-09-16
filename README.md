@@ -20,9 +20,18 @@ auditable, double-entry ledger entries with a human-in-the-loop review.
 bookbot/
 ├── backend/          # Django project (API, pipeline, agents)
 ├── frontend/         # Streamlit app
+├── seed/             # dummy data + sample documents (seed/files/)
+├── media/            # uploaded documents (gitignored)
+│   └── submissions/<submission_id>/<file>
 ├── docker-compose.yml
 └── Makefile
 ```
+
+## Document storage
+
+Uploaded/seed documents are stored on the local filesystem at
+`media/submissions/<submission_id>/<filename>`. `make seed` materialises the
+sample documents from `seed/files/` into that tree.
 
 ## Quickstart
 

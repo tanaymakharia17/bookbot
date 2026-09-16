@@ -34,6 +34,7 @@ services:
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
+      - ./media:/app/media
     env_file:
       - .env
     environment:
@@ -52,6 +53,7 @@ services:
     command: celery -A config worker -l info
     volumes:
       - ./backend:/app
+      - ./media:/app/media
     env_file:
       - .env
     environment:
