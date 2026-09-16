@@ -42,9 +42,20 @@ docker compose up --build
 
 | Service  | URL                     |
 |----------|-------------------------|
+| Gateway (recommended) | http://localhost:8500 |
+| Frontend (direct)     | http://localhost:8501 |
 | Backend  | http://localhost:8000   |
-| Frontend | http://localhost:8501   |
 | Health   | http://localhost:8000/api/v1/health/ |
+
+> Use the gateway (8500) if your browser has a stale Streamlit session: it
+> strips old base paths (e.g. `/New_Submission/_stcore/...`) and redirects
+> unknown page paths back to `/`.
+
+### Uploading documents
+- Normal: **New Submission → Upload**.
+- If browser uploads are blocked by a proxy: open
+  **http://localhost:8000/api/v1/uploads/**, upload there, then pick the files
+  under **"Staged / server files"** in New Submission.
 
 ## Development
 
