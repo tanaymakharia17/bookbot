@@ -5,11 +5,16 @@ from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from apps.core.fsm import SubmissionFSM
 from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
+from apps.core.state import SubmissionState
 from apps.core.tasks import extract_submission
+from apps.services.agent import respond
 from apps.services.extraction import extract
+from apps.services.plan import stage_files
 
 from .serializers import (
     ClientSerializer,
@@ -90,3 +95,66 @@ class SubmissionDetailView(generics.RetrieveAPIView):
     serializer_class = SubmissionDetailSerializer
     permission_classes = [AllowAny]
     queryset = Submission.objects.select_related("client").all()
+
+
+class SubmissionChatView(APIView):
+    """Chat history (GET) and send a message to the review agent (POST)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response([])
+        return Response(submission.chat_messages or [])
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        message = (request.data.get("message") or "").strip()
+        if not message:
+            return Response({"error": "Message cannot be empty."})
+        if submission.state == SubmissionState.RAW:
+            return Response({"error": "Extraction is still in progress. Try again shortly."})
+        if submission.state == SubmissionState.COMMITTED:
+            return Response(
+                {"error": "This submission has been posted. Start a new submission for further work."}
+            )
+
+        messages = list(submission.chat_messages or [])
+        messages.append({"role": "cpa", "content": message})
+        reply = respond(submission, message)
+        messages.append({"role": "agent", "content": reply})
+        submission.chat_messages = messages
+
+        if submission.state == SubmissionState.EXTRACTED:
+            SubmissionFSM.transition(submission, SubmissionState.NEEDS_REVIEW)
+
+        submission.save()
+        return Response({
+            "reply": reply,
+            "submission": SubmissionDetailSerializer(submission).data,
+        })
+
+
+class SubmissionPlanFilesView(APIView):
+    """Stage documents to save or keep as reference on the pending plan."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        result = stage_files(submission, request.data.get("files") or [])
+        if result.get("error"):
+            return Response(result)
+
+        submission.save()
+        return Response({
+            "submission": SubmissionDetailSerializer(submission).data,
+            "proposed": result["proposed"],
+        })
