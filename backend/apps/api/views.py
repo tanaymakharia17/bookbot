@@ -17,14 +17,17 @@ def health(request):
     return Response({"status": "ok", "service": "bookbot-backend"})
 
 
-class ClientListView(generics.ListAPIView):
-    """List the managed companies for the default firm."""
+class ClientListView(generics.ListCreateAPIView):
+    """List and create managed companies for the default firm."""
 
     serializer_class = ClientSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
         return ClientAccount.objects.filter(firm=get_default_firm())
+
+    def perform_create(self, serializer):
+        serializer.save(firm=get_default_firm())
 
 
 class ClientDetailView(generics.RetrieveAPIView):
