@@ -14,6 +14,7 @@ from apps.core.state import SubmissionState
 from apps.core.tasks import extract_submission
 from apps.services.agent import respond
 from apps.services.extraction import extract
+from apps.services.journal import preview as journal_preview
 from apps.services.plan import (
     discard_plan,
     execute_plan,
@@ -242,3 +243,15 @@ class SubmissionPlanDiscardView(APIView):
         discard_plan(submission)
         submission.save()
         return Response({"submission": SubmissionDetailSerializer(submission).data})
+
+
+class SubmissionJournalPreviewView(APIView):
+    """Preview the journal entry for the projected line items."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+        return Response(journal_preview(submission) or {})
