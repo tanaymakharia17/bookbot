@@ -45,6 +45,12 @@ def render() -> None:
         for f in uploaded:
             st.markdown(f"- 📎 {f.name}")
 
+    st.caption(
+        "Upload failing with “Network Error”? An ad-blocker / Brave Shields is blocking the "
+        "request. Disable it for this site (Brave: tap the lion icon → Shields down), "
+        "or open this page in Chrome/Firefox."
+    )
+
     st.write("")
     st.markdown("**Context**")
     raw_input = st.text_area(
