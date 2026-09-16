@@ -329,8 +329,6 @@ class MockBackend:
         return out
 
     def create_submission(self, client_id: str, file_names: list[str], raw_input: str) -> dict[str, Any]:
-        if client_id not in self.clients:
-            raise ValueError("Unknown client.")
         if not file_names:
             raise ValueError("At least one file is required.")
 

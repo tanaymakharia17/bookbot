@@ -195,6 +195,19 @@ class HybridBackend(MockBackend):
     def create_client(self, name: str) -> dict[str, Any]:
         return self._real.create_client(name)
 
+    def create_submission(self, client_id: str, file_names: list[str], raw_input: str) -> dict[str, Any]:
+        # Register the real client locally so mock review/ledger logic can resolve it.
+        client = self._real.get_client(client_id)
+        if client:
+            self.clients[client_id] = {
+                "id": client_id,
+                "name": client.get("name", ""),
+                "submission_count": 0,
+                "last_activity": "",
+                "counts": {},
+            }
+        return super().create_submission(client_id, file_names, raw_input)
+
 
 def _format_error(resp) -> str:
     try:
