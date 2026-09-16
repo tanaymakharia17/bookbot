@@ -1,4 +1,5 @@
 """Django settings for Bookbot."""
+from decimal import Decimal
 from pathlib import Path
 import os
 
@@ -111,6 +112,8 @@ CELERY_TASK_TIME_LIMIT = 600
 
 # Bookbot
 DEFAULT_FIRM_NAME = os.environ.get("DEFAULT_FIRM_NAME", "Default Firm")
+CAPEX_THRESHOLD = Decimal(os.environ.get("CAPEX_THRESHOLD", "2500.00"))
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 VLM_MODEL = os.environ.get("VLM_MODEL", "anthropic/claude-3.5-sonnet")
+AGENT_MODEL = os.environ.get("AGENT_MODEL", VLM_MODEL)
