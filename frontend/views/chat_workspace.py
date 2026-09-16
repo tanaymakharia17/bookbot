@@ -7,7 +7,6 @@ from components.status_badge import badge
 from components.tables import balance_banner, journal_html, line_items_html
 from components.ui import section
 from config import DEFAULT_CAPEX_THRESHOLD
-from sot import build_sot_markdown
 from state import go
 
 
@@ -182,8 +181,6 @@ def _render_sot_pane(sub: dict, client_name: str, threshold: float) -> None:
             _pending_banner("Projected result of the pending plan — not committed yet.")
         with st.container(key="sot_pane", height=320):
             sot_document.render(_view_sub(sub), client_name, threshold)
-            with st.expander("View raw markdown"):
-                st.code(build_sot_markdown(_view_sub(sub), client_name, threshold), language="markdown")
 
 
 def _render_final_pane(api, sub: dict, threshold: float) -> None:
