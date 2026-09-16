@@ -9,7 +9,11 @@ from rest_framework.response import Response
 from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
 
-from .serializers import ClientSerializer, SubmissionListSerializer
+from .serializers import (
+    ClientSerializer,
+    SubmissionCreateSerializer,
+    SubmissionListSerializer,
+)
 
 
 @api_view(["GET"])
@@ -42,11 +46,15 @@ class ClientDetailView(generics.RetrieveAPIView):
         return ClientAccount.objects.filter(firm=get_default_firm())
 
 
-class SubmissionListView(generics.ListAPIView):
-    """List submissions, optionally filtered by client and state."""
+class SubmissionListView(generics.ListCreateAPIView):
+    """List and create submissions, optionally filtered by client and state."""
 
-    serializer_class = SubmissionListSerializer
     permission_classes = [AllowAny]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return SubmissionCreateSerializer
+        return SubmissionListSerializer
 
     def get_queryset(self):
         queryset = Submission.objects.select_related("client").all()

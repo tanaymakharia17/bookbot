@@ -62,3 +62,36 @@ class SubmissionListSerializer(serializers.ModelSerializer):
             "file_names",
             "line_items",
         ]
+
+
+class SubmissionCreateSerializer(serializers.ModelSerializer):
+    """Create a submission (starts in the RAW state)."""
+
+    client_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = Submission
+        fields = [
+            "id",
+            "client_id",
+            "state",
+            "vendor",
+            "raw_input",
+            "file_names",
+            "created_at",
+        ]
+        read_only_fields = ["id", "state", "vendor", "created_at"]
+
+    def validate_client_id(self, value):
+        if not ClientAccount.objects.filter(id=value, firm=get_default_firm()).exists():
+            raise serializers.ValidationError("Unknown company.")
+        return value
+
+    def validate_file_names(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one file is required.")
+        return value
+
+    def create(self, validated_data):
+        client = ClientAccount.objects.get(id=validated_data.pop("client_id"))
+        return Submission.objects.create(client=client, **validated_data)
