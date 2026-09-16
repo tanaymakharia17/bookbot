@@ -2,7 +2,6 @@ import streamlit as st
 
 from api_client import get_api
 from components.ui import page_header
-from config import BACKEND_PUBLIC_URL
 from state import go
 
 
@@ -26,56 +25,25 @@ def render() -> None:
     page_header(
         f"Firm Workspace / {client['name']} / New",
         "New Submission",
-        "Add documents and any context. The agent will extract everything else.",
+        "Upload the raw documents and add any context. The agent will extract everything else.",
     )
-
-    server_files: list[str] = []
-    try:
-        server_files = api.available_files()
-    except Exception:  # noqa: BLE001
-        server_files = []
 
     st.markdown("**Documents**")
-    st.caption(
-        "Upload documents on the upload page (works even when browser uploads are "
-        "blocked by a proxy), then select them below."
+    uploaded = st.file_uploader(
+        "Upload files",
+        type=None,
+        accept_multiple_files=True,
+        key="submission_files",
+        label_visibility="collapsed",
+        help="Select one or several files — PDFs, images, spreadsheets, anything.",
     )
-
-    col_link, col_refresh = st.columns([3, 1], vertical_alignment="bottom")
-    with col_link:
-        st.link_button(
-            "Open upload page ↗",
-            f"{BACKEND_PUBLIC_URL}/api/v1/uploads/",
-            use_container_width=True,
+    if uploaded:
+        st.markdown(
+            f"<div class='bb-muted'>{len(uploaded)} file(s) ready</div>",
+            unsafe_allow_html=True,
         )
-    with col_refresh:
-        if st.button("Refresh list", use_container_width=True, key="refresh_files"):
-            st.rerun()
-
-    picked: list[str] = []
-    if server_files:
-        picked = st.multiselect(
-            "Staged / server files", server_files, key="server_files_pick"
-        )
-    else:
-        st.info("No staged files yet — upload some via the link above, then Refresh.")
-
-    uploaded = []
-    with st.expander("Or upload directly from this browser (may be blocked by a proxy)"):
-        uploaded = st.file_uploader(
-            "Upload files",
-            type=None,
-            accept_multiple_files=True,
-            key="submission_files",
-            label_visibility="collapsed",
-        )
-        if uploaded:
-            st.markdown(
-                f"<div class='bb-muted'>{len(uploaded)} file(s) ready</div>",
-                unsafe_allow_html=True,
-            )
-            for f in uploaded:
-                st.markdown(f"- 📎 {f.name}")
+        for f in uploaded:
+            st.markdown(f"- 📎 {f.name}")
 
     st.write("")
     st.markdown("**Context**")
@@ -101,14 +69,13 @@ def render() -> None:
     if not submitted:
         return
 
-    file_names = [f.name for f in (uploaded or [])] + list(picked)
-    if not file_names:
-        st.error("Add at least one document — upload one or pick a staged file.")
+    if not uploaded:
+        st.error("Please upload at least one document.")
         return
 
     try:
-        with st.spinner("Creating submission and queuing extraction…"):
-            sub = api.create_submission(client_id, file_names, raw_input)
+        with st.spinner("Uploading and queuing extraction…"):
+            sub = api.create_submission(client_id, [f.name for f in uploaded], raw_input)
     except ValueError as exc:
         st.error(str(exc))
         return
