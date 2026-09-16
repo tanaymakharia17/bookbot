@@ -1,6 +1,7 @@
 """Deterministic extraction heuristics (placeholder for the VLM extractor)."""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -9,6 +10,8 @@ from apps.core.fsm import SubmissionFSM
 from apps.core.state import SubmissionState
 from apps.services.sot import build_sot_markdown
 from apps.services.task_seeding import seed_agent_tasks
+
+logger = logging.getLogger(__name__)
 
 
 def extract_amount(text: str) -> float | None:
@@ -122,18 +125,22 @@ def extract(submission, save: bool = True):
     paths = [p for p in paths if p.exists()]
 
     data = None
+    vlm_error: Exception | None = None
     if paths:
         try:
             data = vlm.read_documents(paths)
-        except Exception:  # noqa: BLE001 - fall back to the stub on any VLM error
-            data = None
+        except Exception as exc:  # noqa: BLE001 - fall back to the stub on any VLM error
+            vlm_error = exc
+            logger.exception("VLM extraction failed for submission %s", submission.id)
 
     items = vlm.normalize_line_items(data) if data else []
+    used_fallback = False
     if items:
         submission.vendor = (data.get("vendor") or "Unknown Vendor").strip() or "Unknown Vendor"
         submission.payment_method = vlm.normalize_payment(data.get("payment_method") or "")
         submission.line_items = items
     else:
+        used_fallback = True
         text = " ".join([submission.raw_input or "", *(submission.file_names or [])])
         vendor, category, total, payment = recompute_fields(submission.vendor or "", "", text)
         submission.vendor = vendor
@@ -142,6 +149,15 @@ def extract(submission, save: bool = True):
 
     submission.tasks = seed_agent_tasks(submission_context(submission))
     submission.chat_messages = initial_chat(submission)
+    if used_fallback and paths:
+        reason = f"{type(vlm_error).__name__}" if vlm_error else "the model returned no usable data"
+        submission.chat_messages.append({
+            "role": "agent",
+            "content": (
+                f"⚠️ I couldn't read the documents with the AI model ({reason}), "
+                "so I used a basic fallback. Please review the line items carefully."
+            ),
+        })
     submission.sot_markdown = build_sot_markdown(submission)
 
     SubmissionFSM.transition(submission, SubmissionState.EXTRACTED)

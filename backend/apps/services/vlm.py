@@ -49,7 +49,8 @@ CATEGORIES = %s
 Rules:
 - Use the numbers printed on the document. Do not guess.
 - If a value is unknown, use 0 for numbers and "" for strings.
-- Return ONLY the JSON object, no prose, no code fences.
+- If several documents are provided, COMBINE every line item into this ONE object.
+- Return exactly ONE JSON object (never an array), no prose, no code fences.
 """ % CATEGORIES
 
 
@@ -92,15 +93,26 @@ def _content_blocks(path: Path) -> list[dict[str, Any]]:
         text = _pdf_text(data)
         if text.strip():
             return [{"type": "text", "text": f"PDF text from {path.name}:\n{text[:20000]}"}]
+
         image_blocks = _pdf_image_blocks(data)
         if image_blocks:
             return image_blocks
+
+        # Not a real PDF (or unreadable): treat mislabeled text files as text.
+        try:
+            decoded = data.decode("utf-8")
+        except UnicodeDecodeError:
+            decoded = ""
+        if decoded.strip():
+            return [{"type": "text", "text": f"Document {path.name} (text):\n{decoded[:20000]}"}]
+
         encoded = base64.b64encode(data).decode()
         return [{
             "type": "file",
             "file": {"filename": path.name, "file_data": f"data:application/pdf;base64,{encoded}"},
         }]
 
+    # images (and anything else) go to the model as vision input
     mime, _ = mimetypes.guess_type(path.name)
     encoded = base64.b64encode(data).decode()
     return [{
@@ -109,18 +121,51 @@ def _content_blocks(path: Path) -> list[dict[str, Any]]:
     }]
 
 
-def _parse_json(raw: str) -> dict | None:
+def _parse_json(raw: str):
+    """Parse the model output into a dict. Tolerates code fences and arrays."""
     if not raw:
         return None
     text = raw.strip()
     text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end == -1:
+
+    for candidate in (text, _segment(text, "{", "}"), _segment(text, "[", "]")):
+        if not candidate:
+            continue
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _segment(text: str, opener: str, closer: str) -> str | None:
+    start, end = text.find(opener), text.rfind(closer)
+    if start == -1 or end == -1 or end < start:
         return None
-    try:
-        return json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
+    return text[start : end + 1]
+
+
+def _coerce(data) -> dict[str, Any] | None:
+    """Normalise a single object or a list of per-document objects into one."""
+    if isinstance(data, dict):
+        return data
+    if isinstance(data, list):
+        items: list[dict] = []
+        vendors: list[str] = []
+        payment = ""
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            items.extend(entry.get("line_items") or [])
+            if entry.get("vendor"):
+                vendors.append(str(entry["vendor"]).strip())
+            if not payment and entry.get("payment_method"):
+                payment = str(entry["payment_method"])
+        unique = list(dict.fromkeys(vendors))
+        vendor = unique[0] if len(unique) == 1 else ("Multiple vendors" if unique else "")
+        if items:
+            return {"vendor": vendor, "payment_method": payment, "line_items": items}
+    return None
 
 
 def read_documents(paths: list[Path]) -> dict[str, Any] | None:
@@ -150,9 +195,10 @@ def read_documents(paths: list[Path]) -> dict[str, Any] | None:
                     {"role": "user", "content": content},
                 ],
                 temperature=0,
-                max_tokens=2000,
+                max_tokens=4000,
+                extra_body={"reasoning": {"effort": "low"}},
             )
-            return _parse_json(completion.choices[0].message.content or "")
+            return _coerce(_parse_json(completion.choices[0].message.content or ""))
         except Exception as exc:  # noqa: BLE001 - retry once on transient errors
             last_error = exc
     if last_error:
