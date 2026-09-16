@@ -3,6 +3,7 @@ import streamlit as st
 from api_client import get_api
 from components.status_badge import badge
 from components.ui import empty_state, metric, page_header, section
+from config import API_MODE
 from state import go
 
 
@@ -66,6 +67,11 @@ def render() -> None:
         _client_row(client)
 
     _maybe_open_dialog(api)
+
+    st.markdown(
+        f"<div class='bb-muted' style='margin-top:24px'>Bookbot UI v2 · single-page · data: {API_MODE}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _client_row(client: dict) -> None:
