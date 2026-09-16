@@ -45,6 +45,7 @@ make up        # start stack
 make down      # stop stack
 make logs      # tail logs
 make migrate   # run migrations
+make seed      # load dummy data from seed/
 make test      # run tests
 ```
 
