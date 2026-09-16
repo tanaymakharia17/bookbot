@@ -2,6 +2,7 @@ import streamlit as st
 
 from api_client import get_api
 from components.ui import page_header
+from config import BACKEND_PUBLIC_URL
 from state import go
 
 
@@ -45,11 +46,24 @@ def render() -> None:
         for f in uploaded:
             st.markdown(f"- 📎 {f.name}")
 
-    st.caption(
-        "Upload failing with “Network Error”? An ad-blocker / Brave Shields is blocking the "
-        "request. Disable it for this site (Brave: tap the lion icon → Shields down), "
-        "or open this page in Chrome/Firefox."
-    )
+    # Fallback for browsers that block Streamlit's upload endpoint (e.g. Brave Shields)
+    picked: list[str] = []
+    with st.expander("Upload blocked (Network Error / ERR_ACCESS_DENIED)? Use the fallback"):
+        server_files: list[str] = []
+        try:
+            server_files = api.available_files()
+        except Exception:  # noqa: BLE001
+            server_files = []
+        st.markdown(
+            f"1. Upload your files at **[{BACKEND_PUBLIC_URL}/api/v1/uploads/]"
+            f"({BACKEND_PUBLIC_URL}/api/v1/uploads/)**<br>"
+            "2. Come back and pick them below.",
+            unsafe_allow_html=True,
+        )
+        if server_files:
+            picked = st.multiselect("Staged files", server_files, key="server_files_pick")
+        else:
+            st.caption("No staged files yet — upload some using the link above.")
 
     st.write("")
     st.markdown("**Context**")
@@ -75,13 +89,14 @@ def render() -> None:
     if not submitted:
         return
 
-    if not uploaded:
-        st.error("Please upload at least one document.")
+    file_names = [f.name for f in (uploaded or [])] + list(picked)
+    if not file_names:
+        st.error("Add at least one document — upload one or pick a staged file.")
         return
 
     try:
         with st.spinner("Uploading and queuing extraction…"):
-            sub = api.create_submission(client_id, [f.name for f in uploaded], raw_input)
+            sub = api.create_submission(client_id, file_names, raw_input)
     except ValueError as exc:
         st.error(str(exc))
         return
