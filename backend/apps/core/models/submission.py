@@ -34,7 +34,9 @@ class Submission(models.Model):
     tasks = models.JSONField(default=list, blank=True)
     pending_plan = models.JSONField(default=dict, blank=True)
     journal_entry = models.JSONField(null=True, blank=True)
+    chat_messages = models.JSONField(default=list, blank=True)
     blocker = models.TextField(blank=True)
+    blocker_resolved = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
