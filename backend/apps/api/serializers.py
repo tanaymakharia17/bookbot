@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
-from apps.services.projection import plan_labels, project
+from apps.services.projection import empty_plan, plan_labels, project
 
 
 class ClientSerializer(serializers.ModelSerializer):
@@ -95,7 +95,9 @@ class SubmissionCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         client = ClientAccount.objects.get(id=validated_data.pop("client_id"))
-        return Submission.objects.create(client=client, **validated_data)
+        return Submission.objects.create(
+            client=client, pending_plan=empty_plan(), **validated_data
+        )
 
 
 class SubmissionDetailSerializer(serializers.ModelSerializer):
@@ -103,6 +105,7 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
 
     projected = serializers.SerializerMethodField()
     plan_labels = serializers.SerializerMethodField()
+    pending_plan = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
@@ -136,3 +139,11 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
 
     def get_plan_labels(self, obj) -> list:
         return plan_labels(obj.pending_plan)
+
+    def get_pending_plan(self, obj) -> dict:
+        plan = obj.pending_plan or {}
+        return {
+            "save_files": plan.get("save_files", []),
+            "line_item_ops": plan.get("line_item_ops", []),
+            "task_ops": plan.get("task_ops", []),
+        }

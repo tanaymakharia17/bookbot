@@ -77,7 +77,8 @@ def _task_row(api, sub: dict, task: dict, read_only: bool, pending: bool) -> Non
 
 def _pending_task_ids(sub: dict) -> set[str]:
     ids: set[str] = set()
-    for op in sub["pending_plan"]["task_ops"]:
+    plan = sub.get("pending_plan") or {}
+    for op in plan.get("task_ops", []):
         if op["type"] == "add":
             ids.add(op["task"]["id"])
         elif op.get("task_id"):
