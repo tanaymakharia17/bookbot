@@ -1,13 +1,15 @@
 """API views."""
+import uuid as uuid_lib
+
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from apps.core.models import ClientAccount
+from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
 
-from .serializers import ClientSerializer
+from .serializers import ClientSerializer, SubmissionListSerializer
 
 
 @api_view(["GET"])
@@ -38,3 +40,27 @@ class ClientDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return ClientAccount.objects.filter(firm=get_default_firm())
+
+
+class SubmissionListView(generics.ListAPIView):
+    """List submissions, optionally filtered by client and state."""
+
+    serializer_class = SubmissionListSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = Submission.objects.select_related("client").all()
+
+        client_id = self.request.query_params.get("client")
+        if client_id:
+            try:
+                uuid_lib.UUID(str(client_id))
+            except (ValueError, TypeError):
+                return Submission.objects.none()
+            queryset = queryset.filter(client_id=client_id)
+
+        state = self.request.query_params.get("state")
+        if state:
+            queryset = queryset.filter(state=state)
+
+        return queryset

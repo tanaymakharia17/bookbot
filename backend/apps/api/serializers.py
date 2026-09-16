@@ -1,7 +1,7 @@
 """API serializers."""
 from rest_framework import serializers
 
-from apps.core.models import ClientAccount
+from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
 
 
@@ -45,3 +45,20 @@ class ClientSerializer(serializers.ModelSerializer):
 
     def get_counts(self, obj) -> dict:
         return {}
+
+
+class SubmissionListSerializer(serializers.ModelSerializer):
+    """Submission summary for the submissions list."""
+
+    class Meta:
+        model = Submission
+        fields = [
+            "id",
+            "client_id",
+            "state",
+            "vendor",
+            "raw_input",
+            "created_at",
+            "file_names",
+            "line_items",
+        ]
