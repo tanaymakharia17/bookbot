@@ -48,7 +48,10 @@ def render() -> None:
 
     # Fallback for browsers that block Streamlit's upload endpoint (e.g. Brave Shields)
     picked: list[str] = []
-    with st.expander("Upload blocked (Network Error / ERR_ACCESS_DENIED)? Use the fallback"):
+    with st.expander(
+        "Upload blocked (Network Error / ERR_ACCESS_DENIED)? Use the fallback",
+        expanded=True,
+    ):
         server_files: list[str] = []
         try:
             server_files = api.available_files()
