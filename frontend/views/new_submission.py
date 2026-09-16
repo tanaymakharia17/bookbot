@@ -46,6 +46,20 @@ def render() -> None:
         for f in uploaded:
             st.markdown(f"- 📎 {f.name}")
 
+    server_files: list[str] = []
+    try:
+        server_files = api.available_files()
+    except Exception:  # noqa: BLE001
+        server_files = []
+    picked: list[str] = []
+    if server_files:
+        with st.expander("Can't upload? Attach files already on the server"):
+            st.markdown(
+                "<div class='bb-muted'>Useful when the browser upload is blocked by a proxy.</div>",
+                unsafe_allow_html=True,
+            )
+            picked = st.multiselect("Server files", server_files, key="server_files_pick")
+
     st.write("")
     st.markdown("**Context**")
     raw_input = st.text_area(
@@ -70,13 +84,14 @@ def render() -> None:
     if not submitted:
         return
 
-    if not uploaded:
-        st.error("Please upload at least one document.")
+    file_names = [f.name for f in (uploaded or [])] + list(picked)
+    if not file_names:
+        st.error("Add at least one document — upload one or pick a server file.")
         return
 
     try:
         with st.spinner("Uploading and queuing extraction…"):
-            sub = api.create_submission(client_id, [f.name for f in uploaded], raw_input)
+            sub = api.create_submission(client_id, file_names, raw_input)
     except ValueError as exc:
         st.error(str(exc))
         return

@@ -328,6 +328,9 @@ class MockBackend:
         out["plan_labels"] = self._plan_labels(sub["pending_plan"])
         return out
 
+    def available_files(self) -> list[str]:
+        return []
+
     def create_submission(self, client_id: str, file_names: list[str], raw_input: str) -> dict[str, Any]:
         if not file_names:
             raise ValueError("At least one file is required.")

@@ -19,6 +19,7 @@ from apps.services.ledger import get_entry as get_ledger_entry
 from apps.services.ledger import list_entries as list_ledger_entries
 from apps.services.review import approve as approve_submission
 from apps.services.review import resolve_compliance as resolve_submission_compliance
+from apps.services.storage import available_files, import_named_files
 from apps.services.plan import (
     discard_plan,
     execute_plan,
@@ -79,6 +80,7 @@ class SubmissionListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         submission = serializer.save()
+        import_named_files(submission.id, submission.file_names or [])
         try:
             extract_submission.delay(str(submission.id))
         except Exception:  # noqa: BLE001 - broker unavailable: extract inline
@@ -324,3 +326,12 @@ class LedgerDetailView(APIView):
         if not entry:
             return Response({"error": "Ledger entry not found."}, status=404)
         return Response(entry)
+
+
+class AvailableFilesView(APIView):
+    """List documents available on the server for attachment without browser upload."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"files": available_files()})

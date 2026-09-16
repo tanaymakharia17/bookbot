@@ -22,4 +22,5 @@ urlpatterns = [
     path("submissions/<uuid:pk>/resolve_compliance/", views.SubmissionResolveComplianceView.as_view(), name="submission-resolve-compliance"),
     path("ledger/", views.LedgerListView.as_view(), name="ledger-list"),
     path("ledger/<str:entry_id>/", views.LedgerDetailView.as_view(), name="ledger-detail"),
+    path("uploads/available/", views.AvailableFilesView.as_view(), name="uploads-available"),
 ]

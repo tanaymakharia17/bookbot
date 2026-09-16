@@ -45,3 +45,26 @@ def list_files(submission_id) -> list[str]:
     if not path.exists():
         return []
     return sorted(p.name for p in path.iterdir() if p.is_file())
+
+
+def source_dir() -> Path:
+    """Directory of files that can be attached server-side (bypasses browser upload)."""
+    return Path(getattr(settings, "UPLOAD_SOURCE_DIR", "/seed/files"))
+
+
+def available_files() -> list[str]:
+    path = source_dir()
+    if not path.exists():
+        return []
+    return sorted(p.name for p in path.iterdir() if p.is_file())
+
+
+def import_named_files(submission_id, names: list[str]) -> list[str]:
+    """Copy named files from the source dir into the submission's folder."""
+    imported: list[str] = []
+    for name in names:
+        source = source_dir() / name
+        if source.exists():
+            save_bytes(submission_id, name, source.read_bytes())
+            imported.append(name)
+    return imported

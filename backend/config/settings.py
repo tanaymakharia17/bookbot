@@ -86,6 +86,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
+UPLOAD_SOURCE_DIR = os.environ.get("UPLOAD_SOURCE_DIR", "/seed/files")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

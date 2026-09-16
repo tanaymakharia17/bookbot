@@ -32,6 +32,9 @@ class BaseBackend:
     def create_submission(self, client_id: str, file_names: list[str], raw_input: str) -> dict[str, Any]:
         raise NotImplementedError
 
+    def available_files(self) -> list[str]:
+        raise NotImplementedError
+
     def chat_history(self, submission_id: str) -> list[dict[str, str]]:
         raise NotImplementedError
 
@@ -135,6 +138,10 @@ class RealBackend(BaseBackend):
         return self._post("/api/v1/submissions/", json={
             "client_id": client_id, "file_names": file_names, "raw_input": raw_input,
         })
+
+    def available_files(self) -> list[str]:
+        data = self._get("/api/v1/uploads/available/") or {}
+        return data.get("files", [])
 
     def chat_history(self, submission_id: str) -> list[dict[str, str]]:
         return self._get(f"/api/v1/submissions/{submission_id}/chat/")
