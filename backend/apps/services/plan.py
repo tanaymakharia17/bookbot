@@ -5,8 +5,18 @@ import uuid
 from typing import Any
 
 from apps.core.constants import ACTION_FILE_HINTS
+from apps.core.fsm import SubmissionFSM
 from apps.core.state import SubmissionState
-from apps.services.projection import empty_plan, project
+from apps.services.extraction import mock_extract, recompute_fields, submission_context
+from apps.services.projection import (
+    apply_line_op,
+    apply_task_op,
+    dedup,
+    empty_plan,
+    plan_count,
+    project,
+)
+from apps.services.task_seeding import seed_agent_tasks
 
 
 def _append_chat(submission, content: str) -> None:
@@ -173,4 +183,51 @@ def remove_plan_op(submission, op_id: str) -> dict[str, Any]:
     else:
         plan["line_item_ops"] = [o for o in plan["line_item_ops"] if o["id"] != op_id]
         plan["task_ops"] = [o for o in plan["task_ops"] if o["id"] != op_id]
+    return {}
+
+
+def execute_plan(submission) -> dict[str, Any]:
+    if submission.state == SubmissionState.RAW:
+        return {"error": "Extraction is still in progress."}
+    if submission.state == SubmissionState.COMMITTED:
+        return {"error": "This submission is posted."}
+
+    plan = submission.pending_plan or empty_plan()
+    if plan_count(plan) == 0:
+        return {"error": "There is no pending plan to execute."}
+
+    saved = plan["save_files"]
+    if saved:
+        submission.file_names = dedup(list(submission.file_names or []) + saved)
+        text = " ".join([submission.raw_input or "", *(submission.file_names or [])])
+        category = (submission.line_items or [{}])[0].get("category") if submission.line_items else ""
+        vendor, category, total, payment = recompute_fields(submission.vendor or "", category, text)
+        submission.vendor = vendor
+        submission.payment_method = payment
+        submission.line_items = mock_extract(vendor, category, total)
+
+    for op in plan["line_item_ops"]:
+        submission.line_items = apply_line_op(submission.line_items or [], op)
+
+    if saved:
+        submission.tasks = [t for t in (submission.tasks or []) if t.get("source") == "user"]
+        submission.tasks += seed_agent_tasks(submission_context(submission))
+
+    for op in plan["task_ops"]:
+        submission.tasks = apply_task_op(submission.tasks or [], op)
+
+    submission.pending_plan = empty_plan()
+    if submission.state in (SubmissionState.EXTRACTED, SubmissionState.PENDING_CLIENT):
+        SubmissionFSM.transition(submission, SubmissionState.NEEDS_REVIEW)
+
+    _append_chat(
+        submission,
+        "Executed the plan. The Source of Truth, final data and action list are updated.",
+    )
+    return {}
+
+
+def discard_plan(submission) -> dict[str, Any]:
+    submission.pending_plan = empty_plan()
+    _append_chat(submission, "Discarded the pending plan. Nothing was changed.")
     return {}

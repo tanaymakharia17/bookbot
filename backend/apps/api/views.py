@@ -15,6 +15,8 @@ from apps.core.tasks import extract_submission
 from apps.services.agent import respond
 from apps.services.extraction import extract
 from apps.services.plan import (
+    discard_plan,
+    execute_plan,
     remove_plan_op,
     stage_files,
     stage_task_add,
@@ -205,5 +207,38 @@ class SubmissionPlanOpView(APIView):
         if result.get("error"):
             return Response(result)
 
+        submission.save()
+        return Response({"submission": SubmissionDetailSerializer(submission).data})
+
+
+class SubmissionPlanExecuteView(APIView):
+    """Apply the pending plan to the committed submission state."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        result = execute_plan(submission)
+        if result.get("error"):
+            return Response(result)
+
+        submission.save()
+        return Response({"submission": SubmissionDetailSerializer(submission).data})
+
+
+class SubmissionPlanDiscardView(APIView):
+    """Discard the pending plan without changing anything."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        submission = Submission.objects.filter(pk=pk).first()
+        if not submission:
+            return Response({"error": "Submission not found."})
+
+        discard_plan(submission)
         submission.save()
         return Response({"submission": SubmissionDetailSerializer(submission).data})
