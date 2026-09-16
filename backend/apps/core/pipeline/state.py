@@ -41,6 +41,8 @@ class LedgerState:
     submission_id: str
     client_id: str
     lines: list[LedgerLineItem] = field(default_factory=list)
+    vendor: str = ""
+    payment_method: str = ""
     capex_threshold: Decimal = Decimal("2500.00")
     total_reimbursement_payable: Decimal = Decimal("0.00")
     posted_entries: list[LedgerEntryDraft] = field(default_factory=list)
