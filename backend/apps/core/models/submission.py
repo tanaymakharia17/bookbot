@@ -36,6 +36,7 @@ class Submission(models.Model):
     pending_plan = models.JSONField(default=dict, blank=True)
     journal_entry = models.JSONField(null=True, blank=True)
     chat_messages = models.JSONField(default=list, blank=True)
+    tokens_used = models.IntegerField(default=0)
     blocker = models.TextField(blank=True)
     blocker_resolved = models.BooleanField(default=False)
 

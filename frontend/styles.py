@@ -98,6 +98,7 @@ h1, h2, h3, h4 { color: var(--bb-text); letter-spacing: -0.01em; }
 p, span, label, div { color: var(--bb-text-2); }
 
 .bb-muted { color: var(--bb-muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+.bb-warning-text { color: var(--bb-warning); font-size: 0.82rem; font-weight: 600; }
 .bb-page-title { font-size: 1.45rem; font-weight: 700; margin: 0; color: var(--bb-text); line-height: 1.2; }
 .bb-page-sub { color: var(--bb-muted); font-size: 0.85rem; margin-top: 1px; }
 .bb-crumbs { color: var(--bb-faint); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; }

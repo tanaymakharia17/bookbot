@@ -118,3 +118,9 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 VLM_MODEL = os.environ.get("VLM_MODEL", "anthropic/claude-sonnet-5")
 AGENT_MODEL = os.environ.get("AGENT_MODEL", VLM_MODEL)
+# Chat context guard (per request / cumulative per submission).
+AGENT_CONTEXT_MAX_TOKENS = int(os.environ.get("AGENT_CONTEXT_MAX_TOKENS", "60000"))
+AGENT_SUBMISSION_TOKEN_BUDGET = int(
+    os.environ.get("AGENT_SUBMISSION_TOKEN_BUDGET", "300000")
+)
+AGENT_CHARS_PER_TOKEN = float(os.environ.get("AGENT_CHARS_PER_TOKEN", "4"))

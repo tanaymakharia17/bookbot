@@ -26,11 +26,32 @@ Rules:
 """
 
 
+class ContextLimitReached(Exception):
+    """Raised when a submission's chat context or token budget is exhausted."""
+
+
+def estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
+    """Approximate token count for a message list (chars / chars-per-token)."""
+    chars = 0
+    for entry in messages:
+        content = entry.get("content")
+        if isinstance(content, str):
+            chars += len(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict):
+                    chars += len(str(part.get("text") or ""))
+        chars += len(str(entry.get("tool_calls") or ""))
+    return int(chars / max(settings.AGENT_CHARS_PER_TOKEN, 1))
+
+
 def respond(submission, message: str) -> str:
     """Return the agent's reply, staging any requested changes on the plan."""
     if settings.OPENROUTER_API_KEY:
         try:
             return _llm_respond(submission, message)
+        except ContextLimitReached:
+            raise
         except Exception:  # noqa: BLE001 - fall back to deterministic responder
             pass
     return _fallback_respond(submission, message)
@@ -51,7 +72,7 @@ def _llm_respond(submission, message: str) -> str:
             "vendor": doc.get("vendor"),
             "date": doc.get("date"),
             "total": doc.get("total"),
-            "text": (doc.get("text") or "")[:1500],
+            "text": doc.get("text") or "",
         }
         for doc in (submission.document_context or [])
     ]
@@ -71,13 +92,28 @@ def _llm_respond(submission, message: str) -> str:
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": "Submission context (JSON):\n" + json.dumps(context, indent=2, default=str)},
     ]
-    for past in (submission.chat_messages or [])[-10:]:
+    # Full conversation history — this submission's chat is one continuous session.
+    for past in (submission.chat_messages or []):
         messages.append({"role": past["role"], "content": past["content"]})
     messages.append({"role": "user", "content": message})
 
     applied: list[str] = []
     final_text = ""
     for _ in range(4):
+        estimated = estimate_messages_tokens(messages)
+        if estimated > settings.AGENT_CONTEXT_MAX_TOKENS:
+            raise ContextLimitReached(
+                f"This submission's chat context is too large for one request "
+                f"(~{estimated:,} tokens; limit {settings.AGENT_CONTEXT_MAX_TOKENS:,}). "
+                "Start a new submission or remove some documents to continue."
+            )
+        if submission.tokens_used + estimated > settings.AGENT_SUBMISSION_TOKEN_BUDGET:
+            raise ContextLimitReached(
+                f"This submission has reached its AI token budget "
+                f"({submission.tokens_used:,}/{settings.AGENT_SUBMISSION_TOKEN_BUDGET:,}). "
+                "Start a new submission to continue."
+            )
+
         completion = client.chat.completions.create(
             model=settings.AGENT_MODEL,
             messages=messages,
@@ -85,7 +121,12 @@ def _llm_respond(submission, message: str) -> str:
             tool_choice="auto",
             temperature=0.2,
             max_tokens=800,
+            extra_headers={"X-Session-Id": str(submission.id)},
         )
+        if completion.usage and completion.usage.total_tokens:
+            submission.tokens_used += int(completion.usage.total_tokens)
+            submission.save(update_fields=["tokens_used", "updated_at"])
+
         choice = completion.choices[0].message
         tool_calls = list(choice.tool_calls or [])
         if not tool_calls:

@@ -106,6 +106,7 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
     projected = serializers.SerializerMethodField()
     plan_labels = serializers.SerializerMethodField()
     pending_plan = serializers.SerializerMethodField()
+    token_budget = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
@@ -125,6 +126,8 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
             "pending_plan",
             "journal_entry",
             "chat_messages",
+            "tokens_used",
+            "token_budget",
             "blocker",
             "blocker_resolved",
             "projected",
@@ -147,3 +150,8 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
             "line_item_ops": plan.get("line_item_ops", []),
             "task_ops": plan.get("task_ops", []),
         }
+
+    def get_token_budget(self, obj) -> int:
+        from django.conf import settings
+
+        return settings.AGENT_SUBMISSION_TOKEN_BUDGET

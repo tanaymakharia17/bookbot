@@ -14,7 +14,7 @@ from apps.core.models import ClientAccount, Submission
 from apps.core.services import get_default_firm
 from apps.core.state import SubmissionState
 from apps.core.tasks import extract_submission
-from apps.services.agent import respond
+from apps.services.agent import ContextLimitReached, respond
 from apps.services.extraction import ensure_tasks, extract
 from apps.services.journal import preview as journal_preview
 from apps.services.ledger import get_entry as get_ledger_entry
@@ -158,7 +158,14 @@ class SubmissionChatView(APIView):
 
         messages = list(submission.chat_messages or [])
         messages.append({"role": "cpa", "content": message})
-        reply = respond(submission, message)
+        try:
+            reply = respond(submission, message)
+        except ContextLimitReached as exc:
+            messages.append({"role": "agent", "content": f"⚠️ {exc}"})
+            submission.chat_messages = messages
+            submission.save(update_fields=["chat_messages", "updated_at"])
+            return Response({"error": str(exc), "limit_reached": True})
+
         messages.append({"role": "agent", "content": reply})
         submission.chat_messages = messages
 

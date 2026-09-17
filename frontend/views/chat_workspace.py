@@ -262,6 +262,7 @@ def _render_chat_pane(sub: dict, api) -> None:
 
 def _chat_content(sub: dict, api, full: bool = False, prefix: str = "") -> None:
     pending = st.session_state.get("_pending_msg")
+    limit_key = f"_limit_{sub['id']}"
 
     def body() -> None:
         _render_attach_staging(sub, api, prefix)
@@ -285,6 +286,8 @@ def _chat_content(sub: dict, api, full: bool = False, prefix: str = "") -> None:
                         result = {"error": str(exc)}
                 if result.get("error"):
                     st.toast(result["error"], icon="⚠️")
+                if result.get("limit_reached"):
+                    st.session_state[limit_key] = True
             st.session_state.pop("_pending_msg", None)
             st.rerun(scope="app")
 
@@ -296,7 +299,24 @@ def _chat_content(sub: dict, api, full: bool = False, prefix: str = "") -> None:
         with st.container(key="chat_scroll", height=360):
             body()
 
-    if sub["state"] != "COMMITTED":
+    used = int(sub.get("tokens_used") or 0)
+    budget = int(sub.get("token_budget") or 0)
+    limit_hit = bool(st.session_state.get(limit_key)) or (budget > 0 and used >= budget)
+
+    if budget:
+        css = "bb-muted" if used < budget * 0.8 else "bb-warning-text"
+        st.markdown(
+            f"<div class='{css}'>AI tokens used: {used:,} / {budget:,}</div>",
+            unsafe_allow_html=True,
+        )
+
+    if limit_hit:
+        st.error(
+            "This submission has reached its AI token budget. "
+            "Start a new submission to continue chatting."
+        )
+
+    if sub["state"] != "COMMITTED" and not limit_hit:
         value = st.chat_input(
             "Message the agent, or attach documents…",
             accept_file="multiple",
