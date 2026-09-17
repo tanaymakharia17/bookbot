@@ -10,6 +10,7 @@ CATEGORY_ACCOUNTS: dict[str, tuple[str, str]] = {
     "Meals":             ("6150", "Meals & Entertainment"),
     "Travel":            ("6200", "Travel"),
     "Professional Fees": ("6300", "Professional Fees"),
+    "Taxes":             ("6400", "Taxes & Licenses"),
     "Uncategorized":     ("6999", "Uncategorized"),
 }
 

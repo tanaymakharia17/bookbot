@@ -32,6 +32,40 @@ def dedup(names: list[str]) -> list[str]:
     return out
 
 
+def _find_line(lines: list[dict], target: str) -> dict | None:
+    for line in lines:
+        if line["description"] == target:
+            return line
+    lowered = (target or "").lower()
+    for line in lines:
+        if line["description"].lower() == lowered:
+            return line
+    return None
+
+
+def _new_line(payload: dict) -> dict | None:
+    description = str(payload.get("description") or "").strip()
+    if not description:
+        return None
+    try:
+        qty = float(payload.get("qty") or 1)
+        unit = float(payload.get("unit_price") or 0)
+        amount = float(payload.get("amount") or 0)
+    except (TypeError, ValueError):
+        return None
+    if amount == 0 and unit:
+        amount = round(qty * unit, 2)
+    category = payload.get("category") or "Uncategorized"
+    return {
+        "description": description,
+        "qty": int(qty) if float(qty).is_integer() else qty,
+        "unit_price": round(unit, 2),
+        "amount": round(amount, 2),
+        "category": category,
+        "personal": bool(payload.get("personal")),
+    }
+
+
 def apply_line_op(lines: list[dict], op: dict[str, Any]) -> list[dict]:
     kind = op.get("type")
     if kind == "exclude_personal":
@@ -65,6 +99,21 @@ def apply_line_op(lines: list[dict], op: dict[str, Any]) -> list[dict]:
                     "amount": part_b, "category": "Software", "personal": False,
                 })
                 break
+    elif kind == "add_line_item":
+        line = _new_line(op.get("line") or {})
+        if line:
+            lines.append(line)
+    elif kind == "update_line_item":
+        target = _find_line(lines, op.get("target"))
+        if target is not None:
+            fields = op.get("fields") or {}
+            for key in ("description", "qty", "unit_price", "amount", "category", "personal"):
+                if key in fields and fields[key] is not None:
+                    target[key] = fields[key]
+    elif kind == "remove_line_item":
+        target = _find_line(lines, op.get("target"))
+        if target is not None:
+            lines.remove(target)
     return lines
 
 

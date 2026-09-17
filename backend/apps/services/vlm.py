@@ -19,6 +19,7 @@ CATEGORIES = [
     "Meals",
     "Travel",
     "Professional Fees",
+    "Taxes",
     "Uncategorized",
 ]
 
