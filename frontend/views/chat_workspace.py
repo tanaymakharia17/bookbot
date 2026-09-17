@@ -206,16 +206,32 @@ def _render_final_pane(api, sub: dict, threshold: float) -> None:
 def _render_chat_pane(sub: dict, api) -> None:
     with st.container(border=True, key="chat_card"):
         section("Chat")
+        pending = st.session_state.get("_pending_msg")
+
         with st.container(key="chat_scroll", height=360):
             _render_attach_staging(sub, api)
 
             history = api.chat_history(sub["id"])
-            if not history:
+            if not history and not pending:
                 st.info("No conversation yet.")
             for msg in history:
                 avatar = "🤖" if msg["role"] == "agent" else "🧑‍💼"
                 with st.chat_message("assistant" if msg["role"] == "agent" else "user", avatar=avatar):
                     st.markdown(msg["content"])
+
+            if pending:
+                with st.chat_message("user", avatar="🧑‍💼"):
+                    st.markdown(pending)
+                with st.chat_message("assistant", avatar="🤖"):
+                    with st.spinner("Agent is thinking…"):
+                        try:
+                            result = api.chat(sub["id"], pending)
+                        except Exception as exc:  # noqa: BLE001
+                            result = {"error": str(exc)}
+                    if result.get("error"):
+                        st.toast(result["error"], icon="⚠️")
+                st.session_state.pop("_pending_msg", None)
+                st.rerun()
 
             plan_component.render_plan(api, sub)
 
@@ -223,16 +239,15 @@ def _render_chat_pane(sub: dict, api) -> None:
             value = st.chat_input(
                 "Message the agent, or attach documents…",
                 accept_file="multiple",
+                disabled=bool(pending),
             )
             if value:
                 text = getattr(value, "text", "") or ""
                 files = list(getattr(value, "files", []) or [])
-                if text.strip():
-                    result = api.chat(sub["id"], text)
-                    if result.get("error"):
-                        st.toast(result["error"], icon="⚠️")
                 if files:
                     st.session_state["_staged_files"] = files
+                if text.strip():
+                    st.session_state["_pending_msg"] = text.strip()
                 st.rerun()
 
 
