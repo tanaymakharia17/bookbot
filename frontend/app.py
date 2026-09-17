@@ -12,11 +12,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+from state import current_view, get_theme, toggle_theme  # noqa: E402
 from styles import inject_css  # noqa: E402
 
-inject_css()
+inject_css(get_theme())
 
-from state import current_view  # noqa: E402
+# Global theme toggle (top-right, every page)
+_spacer, _theme_col = st.columns([8, 1], vertical_alignment="center")
+with _theme_col:
+    st.button(
+        "🌙 Dark" if get_theme() == "light" else "☀️ Light",
+        key="_theme_toggle",
+        use_container_width=True,
+        on_click=toggle_theme,
+        help="Switch between light and dark mode",
+    )
+
 from views import (  # noqa: E402
     chat_workspace,
     client_list,
