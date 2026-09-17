@@ -22,6 +22,15 @@ CATEGORIES = [
     "Uncategorized",
 ]
 
+try:  # iPhone HEIC receipts
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except Exception:  # noqa: BLE001 - optional dependency
+    pass
+
+SAFE_MIMES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+
 SYSTEM_PROMPT = (
     "You are an accounting document parser. Read the provided receipt, invoice, "
     "or document and extract its contents exactly. Never invent amounts."
@@ -85,6 +94,44 @@ def _pdf_image_blocks(data: bytes, max_pages: int = 5) -> list[dict[str, Any]]:
     return blocks
 
 
+def _sniff_image_mime(data: bytes) -> str | None:
+    """Detect an image's real type from its magic bytes."""
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if data.startswith(b"BM"):
+        return "image/bmp"
+    if data.startswith((b"II*\x00", b"MM\x00*")):
+        return "image/tiff"
+    if len(data) > 12 and data[4:8] == b"ftyp" and data[8:12] in (
+        b"heic", b"heix", b"hevc", b"mif1", b"msf1",
+    ):
+        return "image/heic"
+    return None
+
+
+def _normalize_image(data: bytes) -> tuple[bytes, str]:
+    """Return (bytes, mime) with a provider-safe type, converting if needed."""
+    mime = _sniff_image_mime(data)
+    if mime in SAFE_MIMES:
+        return data, mime
+
+    try:
+        from PIL import Image
+
+        buffer = io.BytesIO()
+        with Image.open(io.BytesIO(data)) as image:
+            image.convert("RGB").save(buffer, format="PNG")
+        return buffer.getvalue(), "image/png"
+    except Exception:  # noqa: BLE001 - send as-is with the best guess
+        return data, mime or "image/png"
+
+
 def _content_blocks(path: Path) -> list[dict[str, Any]]:
     suffix = path.suffix.lower()
     data = path.read_bytes()
@@ -113,11 +160,11 @@ def _content_blocks(path: Path) -> list[dict[str, Any]]:
         }]
 
     # images (and anything else) go to the model as vision input
-    mime, _ = mimetypes.guess_type(path.name)
+    data, mime = _normalize_image(path.read_bytes())
     encoded = base64.b64encode(data).decode()
     return [{
         "type": "image_url",
-        "image_url": {"url": f"data:{mime or 'image/png'};base64,{encoded}"},
+        "image_url": {"url": f"data:{mime};base64,{encoded}"},
     }]
 
 
