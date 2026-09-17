@@ -27,6 +27,7 @@ class Submission(models.Model):
     channel = models.CharField(max_length=100, default="Portal Upload")
     raw_input = models.TextField(blank=True)
     sot_markdown = models.TextField(blank=True)
+    document_context = models.JSONField(default=list, blank=True)
 
     file_names = models.JSONField(default=list, blank=True)
     reference_files = models.JSONField(default=list, blank=True)

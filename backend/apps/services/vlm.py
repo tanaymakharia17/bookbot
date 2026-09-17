@@ -50,7 +50,12 @@ USER_PROMPT = """Extract the document(s) into STRICT JSON with this shape:
   "subtotal": number,
   "tax": number,
   "total": number,
-  "notes": "string"
+  "notes": "string",
+  "documents": [
+    {"file": "file name", "vendor": "string", "date": "YYYY-MM-DD or empty",
+     "total": number,
+     "text": "transcribe the document's key lines verbatim (include tax, fees, discounts, totals)"}
+  ]
 }
 
 CATEGORIES = %s
@@ -59,6 +64,7 @@ Rules:
 - Use the numbers printed on the document. Do not guess.
 - If a value is unknown, use 0 for numbers and "" for strings.
 - If several documents are provided, COMBINE every line item into this ONE object.
+- For EACH provided document add exactly one entry to "documents" with its file name.
 - Return exactly ONE JSON object (never an array), no prose, no code fences.
 """ % CATEGORIES
 
@@ -192,15 +198,36 @@ def _segment(text: str, opener: str, closer: str) -> str | None:
     return text[start : end + 1]
 
 
-def _coerce(data) -> dict[str, Any] | None:
+def _digest(entry: dict[str, Any], file_name: str | None = None) -> dict[str, Any]:
+    return {
+        "file": str(entry.get("file") or file_name or "").strip(),
+        "vendor": str(entry.get("vendor") or "").strip(),
+        "date": str(entry.get("date") or "").strip(),
+        "total": entry.get("total") or 0,
+        "text": str(entry.get("text") or entry.get("notes") or "")[:4000],
+    }
+
+
+def _coerce(data, file_names: list[str] | None = None) -> dict[str, Any] | None:
     """Normalise a single object or a list of per-document objects into one."""
+    file_names = file_names or []
+
     if isinstance(data, dict):
-        return data
+        result = dict(data)
+        docs = [
+            _digest(entry)
+            for entry in (result.get("documents") or [])
+            if isinstance(entry, dict)
+        ]
+        result["documents"] = docs
+        return result
+
     if isinstance(data, list):
         items: list[dict] = []
         vendors: list[str] = []
         payment = ""
-        for entry in data:
+        docs: list[dict] = []
+        for index, entry in enumerate(data):
             if not isinstance(entry, dict):
                 continue
             items.extend(entry.get("line_items") or [])
@@ -208,10 +235,17 @@ def _coerce(data) -> dict[str, Any] | None:
                 vendors.append(str(entry["vendor"]).strip())
             if not payment and entry.get("payment_method"):
                 payment = str(entry["payment_method"])
+            fallback = file_names[index] if index < len(file_names) else None
+            docs.append(_digest(entry, fallback))
         unique = list(dict.fromkeys(vendors))
         vendor = unique[0] if len(unique) == 1 else ("Multiple vendors" if unique else "")
-        if items:
-            return {"vendor": vendor, "payment_method": payment, "line_items": items}
+        if items or docs:
+            return {
+                "vendor": vendor,
+                "payment_method": payment,
+                "line_items": items,
+                "documents": docs,
+            }
     return None
 
 
@@ -245,7 +279,10 @@ def read_documents(paths: list[Path]) -> dict[str, Any] | None:
                 max_tokens=4000,
                 extra_body={"reasoning": {"effort": "low"}},
             )
-            return _coerce(_parse_json(completion.choices[0].message.content or ""))
+            return _coerce(
+                _parse_json(completion.choices[0].message.content or ""),
+                [p.name for p in paths],
+            )
         except Exception as exc:  # noqa: BLE001 - retry once on transient errors
             last_error = exc
     if last_error:
@@ -291,3 +328,35 @@ def normalize_payment(value: str) -> str:
     if "cash" in text:
         return "Cash"
     return value or "Company Credit Card"
+
+
+INSPECT_PROMPT = (
+    "Answer the question about this document precisely. Quote the exact figures, "
+    "line items, tax and totals you can see. If the answer is not present, say so."
+)
+
+
+def inspect_document(path: Path, question: str) -> str:
+    """Re-read a single document and answer a question about it (vision/text)."""
+    if not settings.OPENROUTER_API_KEY:
+        raise RuntimeError("No VLM API key configured.")
+
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=settings.OPENROUTER_BASE_URL,
+        api_key=settings.OPENROUTER_API_KEY,
+    )
+    content: list[dict[str, Any]] = [
+        {"type": "text", "text": f"{INSPECT_PROMPT}\n\nQuestion: {question}"}
+    ]
+    content.extend(_content_blocks(path))
+
+    completion = client.chat.completions.create(
+        model=settings.VLM_MODEL,
+        messages=[{"role": "user", "content": content}],
+        temperature=0,
+        max_tokens=800,
+        extra_body={"reasoning": {"effort": "low"}},
+    )
+    return (completion.choices[0].message.content or "").strip()

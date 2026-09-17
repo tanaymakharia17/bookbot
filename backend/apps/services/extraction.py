@@ -139,6 +139,7 @@ def extract(submission, save: bool = True):
         submission.vendor = (data.get("vendor") or "Unknown Vendor").strip() or "Unknown Vendor"
         submission.payment_method = vlm.normalize_payment(data.get("payment_method") or "")
         submission.line_items = items
+        submission.document_context = data.get("documents") or []
     else:
         used_fallback = True
         text = " ".join([submission.raw_input or "", *(submission.file_names or [])])
@@ -146,6 +147,10 @@ def extract(submission, save: bool = True):
         submission.vendor = vendor
         submission.payment_method = payment
         submission.line_items = mock_extract(vendor, category, total)
+        submission.document_context = [
+            {"file": name, "vendor": vendor, "date": "", "total": total, "text": ""}
+            for name in (submission.file_names or [])
+        ]
 
     submission.tasks = seed_agent_tasks(submission_context(submission))
     submission.chat_messages = initial_chat(submission)
