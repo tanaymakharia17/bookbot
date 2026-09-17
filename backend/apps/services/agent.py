@@ -6,7 +6,7 @@ from typing import Any
 
 from django.conf import settings
 
-from apps.agents.tools import TOOL_DEFINITIONS, apply_tool_call, new_op_id
+from apps.agents.tools import TOOL_DEFINITIONS, dispatch_tool, new_op_id
 from apps.core.constants import PERSONAL_KEYWORDS
 from apps.services.projection import empty_plan, project
 
@@ -17,6 +17,10 @@ Rules:
 - Changes are STAGED in a "pending plan"; they are NOT applied until the CPA executes the plan.
   Never claim a change is done — say it was added to the plan.
 - Use the provided tools to stage changes when the CPA asks for them.
+- The submission context includes `documents`: a per-file digest with transcribed text.
+  If the CPA asks about something that may not be in the line items (tax, fees, discounts,
+  a specific detail), call `inspect_document` to re-read the relevant file before answering.
+- Use `add_line_item` / `update_line_item` / `remove_line_item` to fix omissions or mistakes.
 - Reference line items by their exact description.
 - Be concise and specific.
 """
@@ -41,14 +45,26 @@ def _llm_respond(submission, message: str) -> str:
     )
 
     proj = project(submission)
+    documents = [
+        {
+            "file": doc.get("file"),
+            "vendor": doc.get("vendor"),
+            "date": doc.get("date"),
+            "total": doc.get("total"),
+            "text": (doc.get("text") or "")[:1500],
+        }
+        for doc in (submission.document_context or [])
+    ]
     context: dict[str, Any] = {
         "submission_id": str(submission.id),
         "state": submission.state,
+        "files": submission.file_names or [],
         "vendor": proj["vendor"],
         "payment_method": proj["payment_method"],
         "line_items": proj["line_items"],
         "tasks": proj["tasks"],
         "pending_plan": submission.pending_plan or empty_plan(),
+        "documents": documents,
     }
 
     messages: list[dict[str, Any]] = [
@@ -59,32 +75,57 @@ def _llm_respond(submission, message: str) -> str:
         messages.append({"role": past["role"], "content": past["content"]})
     messages.append({"role": "user", "content": message})
 
-    completion = client.chat.completions.create(
-        model=settings.AGENT_MODEL,
-        messages=messages,
-        tools=TOOL_DEFINITIONS,
-        tool_choice="auto",
-        temperature=0.2,
-        max_tokens=800,
-    )
-    choice = completion.choices[0].message
-
     applied: list[str] = []
-    for call in (choice.tool_calls or []):
-        try:
-            arguments = json.loads(call.function.arguments or "{}")
-        except json.JSONDecodeError:
-            arguments = {}
-        label = apply_tool_call(submission, call.function.name, arguments)
-        if label:
-            applied.append(label)
+    final_text = ""
+    for _ in range(4):
+        completion = client.chat.completions.create(
+            model=settings.AGENT_MODEL,
+            messages=messages,
+            tools=TOOL_DEFINITIONS,
+            tool_choice="auto",
+            temperature=0.2,
+            max_tokens=800,
+        )
+        choice = completion.choices[0].message
+        tool_calls = list(choice.tool_calls or [])
+        if not tool_calls:
+            final_text = (choice.content or "").strip()
+            break
 
-    text = (choice.content or "").strip()
+        messages.append({
+            "role": "assistant",
+            "content": choice.content or "",
+            "tool_calls": [
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.function.name,
+                        "arguments": call.function.arguments,
+                    },
+                }
+                for call in tool_calls
+            ],
+        })
+        for call in tool_calls:
+            try:
+                arguments = json.loads(call.function.arguments or "{}")
+            except json.JSONDecodeError:
+                arguments = {}
+            label, observation = dispatch_tool(submission, call.function.name, arguments)
+            if label:
+                applied.append(label)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": observation or "ok",
+            })
+
     if applied:
         note = "Added to the pending plan:\n\n- " + "\n- ".join(applied)
-        return f"{text}\n\n{note}".strip() if text else note
-    if text:
-        return text
+        return f"{final_text}\n\n{note}".strip() if final_text else note
+    if final_text:
+        return final_text
     return _fallback_respond(submission, message)
 
 
