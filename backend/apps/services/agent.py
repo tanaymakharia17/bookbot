@@ -21,6 +21,9 @@ Rules:
   If the CPA asks about something that may not be in the line items (tax, fees, discounts,
   a specific detail), call `inspect_document` to re-read the relevant file before answering.
 - Use `add_line_item` / `update_line_item` / `remove_line_item` to fix omissions or mistakes.
+- To APPLY staged changes, the CPA clicks **Execute plan** in the "Pending plan" panel (Chat section);
+  to post to the ledger they click **Approve & Post to Ledger** (Actions section).
+  You cannot execute or approve yourself — never claim you did.
 - Reference line items by their exact description.
 - Be concise and specific.
 """

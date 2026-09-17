@@ -271,33 +271,34 @@ def _chat_content(sub: dict, api, full: bool = False, prefix: str = "") -> None:
         if not history and not pending:
             st.info("No conversation yet.")
         for msg in history:
-            avatar = "🤖" if msg["role"] == "agent" else "🧑‍💼"
+            avatar = "\U0001F916" if msg["role"] == "agent" else "\U0001F9D1"
             with st.chat_message("assistant" if msg["role"] == "agent" else "user", avatar=avatar):
                 st.markdown(msg["content"])
 
         if pending:
-            with st.chat_message("user", avatar="🧑‍💼"):
+            with st.chat_message("user", avatar="\U0001F9D1\u200D\U0001F4BC"):
                 st.markdown(pending)
-            with st.chat_message("assistant", avatar="🤖"):
-                with st.spinner("Agent is thinking…"):
+            with st.chat_message("assistant", avatar="\U0001F916"):
+                with st.spinner("Agent is thinking\u2026"):
                     try:
                         result = api.chat(sub["id"], pending)
                     except Exception as exc:  # noqa: BLE001
                         result = {"error": str(exc)}
                 if result.get("error"):
-                    st.toast(result["error"], icon="⚠️")
+                    st.toast(result["error"], icon="\u26A0\uFE0F")
                 if result.get("limit_reached"):
                     st.session_state[limit_key] = True
             st.session_state.pop("_pending_msg", None)
             st.rerun(scope="app")
-
-        plan_component.render_plan(api, sub, prefix)
 
     if full:
         body()
     else:
         with st.container(key="chat_scroll", height=360):
             body()
+
+    # Always visible (outside the scroll area) so Execute/Discard are easy to find.
+    plan_component.render_plan(api, sub, prefix)
 
     used = int(sub.get("tokens_used") or 0)
     budget = int(sub.get("token_budget") or 0)
@@ -377,6 +378,27 @@ def _actions_content(sub: dict, api, full: bool = False, prefix: str = "") -> No
     else:
         with st.container(key="actions_scroll", height=240):
             tasks_component.render_task_list(api, sub, prefix)
+
+    if sub["projected"].get("has_pending"):
+        st.markdown(
+            "<div class='bb-pending-banner'> Pending plan staged — execute it to enable posting.</div>",
+            unsafe_allow_html=True,
+        )
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("▶ Execute plan", type="primary", use_container_width=True,
+                         key=f"{prefix}actions_execute"):
+                result = api.execute_plan(sub["id"])
+                if result.get("error"):
+                    st.toast(result["error"], icon="⚠️")
+                st.rerun(scope="app")
+        with c2:
+            if st.button("Discard", use_container_width=True, key=f"{prefix}actions_discard"):
+                result = api.discard_plan(sub["id"])
+                if result.get("error"):
+                    st.toast(result["error"], icon="⚠️")
+                st.rerun(scope="app")
+
     _render_actions(sub, api, prefix)
 
 
