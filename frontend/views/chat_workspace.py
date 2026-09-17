@@ -5,9 +5,9 @@ from components import plan as plan_component
 from components import sot_document, tasks as tasks_component
 from components.status_badge import badge
 from components.tables import balance_banner, journal_html, line_items_html
-from components.ui import section
+from components.ui import section_bar
 from config import DEFAULT_CAPEX_THRESHOLD
-from state import go
+from state import go, is_collapsed
 
 
 def render() -> None:
@@ -34,6 +34,7 @@ def render() -> None:
         go("submissions", client_id=sub["client_id"])
 
     _inject_locked_layout()
+    _inject_collapse_css()
     _header(sub, client_name)
 
     if sub["state"] == "RAW":
@@ -56,68 +57,68 @@ def _inject_locked_layout() -> None:
         """
 <style>
   /* page fills the viewport exactly */
-  .block-container:has(.st-key-sot_pane) {
+  .block-container:has(.st-key-sot_card) {
       height: 100vh !important; box-sizing: border-box;
       overflow: auto !important;
       display: flex !important; flex-direction: column !important;
   }
   /* every wrapper on the path to a card fills the remaining height */
-  .block-container:has(.st-key-sot_pane) div[data-testid="stLayoutWrapper"]:has(.st-key-sot_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stVerticalBlock"]:has(.st-key-sot_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stLayoutWrapper"]:has(.st-key-final_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stVerticalBlock"]:has(.st-key-final_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stLayoutWrapper"]:has(.st-key-chat_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stVerticalBlock"]:has(.st-key-chat_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stLayoutWrapper"]:has(.st-key-actions_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stVerticalBlock"]:has(.st-key-actions_card) {
+  .block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(.st-key-sot_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stVerticalBlock"]:has(.st-key-sot_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(.st-key-final_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stVerticalBlock"]:has(.st-key-final_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(.st-key-chat_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stVerticalBlock"]:has(.st-key-chat_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(.st-key-actions_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stVerticalBlock"]:has(.st-key-actions_card) {
       flex: 1 1 0 !important; min-height: 0 !important;
       display: flex !important; flex-direction: column !important;
   }
   /* direct wrapper of the chat/actions cards drives the 60/40 split */
-  .block-container:has(.st-key-sot_pane) div[data-testid="stLayoutWrapper"]:has(> .st-key-chat_card) {
+  .block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(> .st-key-chat_card) {
       flex: 3 1 0 !important;
   }
-  .block-container:has(.st-key-sot_pane) div[data-testid="stLayoutWrapper"]:has(> .st-key-actions_card) {
+  .block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(> .st-key-actions_card) {
       flex: 2 1 0 !important;
   }
   /* columns row */
-  .block-container:has(.st-key-sot_pane) div[data-testid="stHorizontalBlock"]:has(.st-key-sot_card) {
+  .block-container:has(.st-key-sot_card) div[data-testid="stHorizontalBlock"]:has(.st-key-sot_card) {
       flex: 1 1 0 !important; min-height: 0 !important; align-items: stretch !important;
   }
   /* columns stretch and are flex columns */
-  .block-container:has(.st-key-sot_pane) div[data-testid="stColumn"]:has(.st-key-sot_card),
-  .block-container:has(.st-key-sot_pane) div[data-testid="stColumn"]:has(.st-key-chat_card) {
+  .block-container:has(.st-key-sot_card) div[data-testid="stColumn"]:has(.st-key-sot_card),
+  .block-container:has(.st-key-sot_card) div[data-testid="stColumn"]:has(.st-key-chat_card) {
       align-self: stretch !important; height: auto !important; min-height: 0 !important;
       display: flex !important; flex-direction: column !important;
   }
-  .block-container:has(.st-key-sot_pane) div[data-testid="stColumn"]:has(.st-key-sot_card) > div[data-testid="stVerticalBlock"],
-  .block-container:has(.st-key-sot_pane) div[data-testid="stColumn"]:has(.st-key-chat_card) > div[data-testid="stVerticalBlock"] {
+  .block-container:has(.st-key-sot_card) div[data-testid="stColumn"]:has(.st-key-sot_card) > div[data-testid="stVerticalBlock"],
+  .block-container:has(.st-key-sot_card) div[data-testid="stColumn"]:has(.st-key-chat_card) > div[data-testid="stVerticalBlock"] {
       flex: 1 1 0 !important; min-height: 0 !important;
       display: flex !important; flex-direction: column !important;
   }
   /* the four cards share their column */
-  .block-container:has(.st-key-sot_pane) .st-key-sot_card,
-  .block-container:has(.st-key-sot_pane) .st-key-final_card,
-  .block-container:has(.st-key-sot_pane) .st-key-chat_card,
-  .block-container:has(.st-key-sot_pane) .st-key-actions_card {
+  .block-container:has(.st-key-sot_card) .st-key-sot_card,
+  .block-container:has(.st-key-sot_card) .st-key-final_card,
+  .block-container:has(.st-key-sot_card) .st-key-chat_card,
+  .block-container:has(.st-key-sot_card) .st-key-actions_card {
       flex: 1 1 0 !important; min-height: 200px !important;
       display: flex !important; flex-direction: column !important;
   }
-  .block-container:has(.st-key-sot_pane) .st-key-chat_card { flex: 3 1 0 !important; }
-  .block-container:has(.st-key-sot_pane) .st-key-actions_card { flex: 2 1 0 !important; }
+  .block-container:has(.st-key-sot_card) .st-key-chat_card { flex: 3 1 0 !important; }
+  .block-container:has(.st-key-sot_card) .st-key-actions_card { flex: 2 1 0 !important; }
   /* the wrapper holding a scroll region fills its card */
-  .block-container:has(.st-key-sot_pane) .st-key-sot_card > div[data-testid="stLayoutWrapper"],
-  .block-container:has(.st-key-sot_pane) .st-key-final_card > div[data-testid="stLayoutWrapper"],
-  .block-container:has(.st-key-sot_pane) .st-key-chat_card > div[data-testid="stLayoutWrapper"],
-  .block-container:has(.st-key-sot_pane) .st-key-actions_card > div[data-testid="stLayoutWrapper"] {
+  .block-container:has(.st-key-sot_card) .st-key-sot_card > div[data-testid="stLayoutWrapper"]:has(> .st-key-sot_pane),
+  .block-container:has(.st-key-sot_card) .st-key-final_card > div[data-testid="stLayoutWrapper"]:has(> .st-key-final_pane),
+  .block-container:has(.st-key-sot_card) .st-key-chat_card > div[data-testid="stLayoutWrapper"]:has(> .st-key-chat_scroll),
+  .block-container:has(.st-key-sot_card) .st-key-actions_card > div[data-testid="stLayoutWrapper"]:has(> .st-key-actions_scroll) {
       flex: 1 1 0 !important; min-height: 0 !important; height: auto !important;
       display: flex !important; flex-direction: column !important;
   }
   /* scroll regions take the remaining space and scroll */
-  .block-container:has(.st-key-sot_pane) .st-key-sot_pane,
-  .block-container:has(.st-key-sot_pane) .st-key-final_pane,
-  .block-container:has(.st-key-sot_pane) .st-key-chat_scroll,
-  .block-container:has(.st-key-sot_pane) .st-key-actions_scroll {
+  .block-container:has(.st-key-sot_card) .st-key-sot_pane,
+  .block-container:has(.st-key-sot_card) .st-key-final_pane,
+  .block-container:has(.st-key-sot_card) .st-key-chat_scroll,
+  .block-container:has(.st-key-sot_card) .st-key-actions_scroll {
       flex: 1 1 0 !important; min-height: 0 !important;
       height: auto !important; overflow: auto !important;
   }
@@ -125,6 +126,28 @@ def _inject_locked_layout() -> None:
 """,
         unsafe_allow_html=True,
     )
+
+
+def _inject_collapse_css() -> None:
+    """Collapsed cards shrink to their header; expanded siblings absorb the space."""
+    rules = []
+    for key in ("sot", "final", "chat", "actions"):
+        if not is_collapsed(key):
+            continue
+        rules.append(
+            f".block-container:has(.st-key-sot_card) .st-key-{key}_card "
+            "{ flex: 0 0 auto !important; min-height: 0 !important; }"
+        )
+        rules.append(
+            f'.block-container:has(.st-key-sot_card) div[data-testid="stLayoutWrapper"]:has(> .st-key-{key}_card) '
+            "{ flex: 0 0 auto !important; min-height: 0 !important; }"
+        )
+        rules.append(
+            f'.block-container:has(.st-key-sot_card) .st-key-{key}_card > div[data-testid="stLayoutWrapper"] '
+            "{ flex: 0 0 auto !important; min-height: 0 !important; }"
+        )
+    if rules:
+        st.markdown("<style>" + "".join(rules) + "</style>", unsafe_allow_html=True)
 
 
 def _view_sub(sub: dict) -> dict:
@@ -176,7 +199,9 @@ def _watch_extraction(api, submission_id: str) -> None:
 
 def _render_sot_pane(sub: dict, client_name: str, threshold: float) -> None:
     with st.container(border=True, key="sot_card"):
-        section("Source of Truth")
+        section_bar("Source of Truth", "sot")
+        if is_collapsed("sot"):
+            return
         if sub["projected"].get("has_pending"):
             _pending_banner("Projected result of the pending plan — not committed yet.")
         with st.container(key="sot_pane", height=320):
@@ -186,7 +211,9 @@ def _render_sot_pane(sub: dict, client_name: str, threshold: float) -> None:
 def _render_final_pane(api, sub: dict, threshold: float) -> None:
     proj = sub["projected"]
     with st.container(border=True, key="final_card"):
-        section("Final data")
+        section_bar("Final data", "final")
+        if is_collapsed("final"):
+            return
         if proj.get("has_pending"):
             _pending_banner("Projected result of the pending plan — not committed yet.")
         with st.container(key="final_pane", height=320):
@@ -205,7 +232,9 @@ def _render_final_pane(api, sub: dict, threshold: float) -> None:
 
 def _render_chat_pane(sub: dict, api) -> None:
     with st.container(border=True, key="chat_card"):
-        section("Chat")
+        section_bar("Chat", "chat")
+        if is_collapsed("chat"):
+            return
         pending = st.session_state.get("_pending_msg")
 
         with st.container(key="chat_scroll", height=360):
@@ -283,7 +312,9 @@ def _render_attach_staging(sub: dict, api) -> None:
 
 def _render_actions_pane(sub: dict, api) -> None:
     with st.container(border=True, key="actions_card"):
-        section("Actions")
+        section_bar("Actions", "actions")
+        if is_collapsed("actions"):
+            return
         with st.container(key="actions_scroll", height=240):
             tasks_component.render_task_list(api, sub)
         _render_actions(sub, api)

@@ -1,5 +1,7 @@
 import streamlit as st
 
+from state import is_collapsed, open_modal, toggle_collapsed
+
 
 def page_header(crumbs: str, title: str, subtitle: str = "") -> None:
     sub = f"<div class='bb-page-sub'>{subtitle}</div>" if subtitle else ""
@@ -13,6 +15,32 @@ def page_header(crumbs: str, title: str, subtitle: str = "") -> None:
 
 def section(title: str) -> None:
     st.markdown(f"<div class='bb-section'>{title}</div>", unsafe_allow_html=True)
+
+
+def section_bar(title: str, key: str) -> None:
+    """Section title with collapse and full-size actions."""
+    collapsed = is_collapsed(key)
+    cols = st.columns([10, 1, 1], vertical_alignment="center")
+    with cols[0]:
+        st.markdown(f"<div class='bb-section'>{title}</div>", unsafe_allow_html=True)
+    with cols[1]:
+        st.button(
+            "▸" if collapsed else "▾",
+            key=f"collapse_{key}",
+            help="Expand" if collapsed else "Collapse",
+            on_click=toggle_collapsed,
+            args=(key,),
+            use_container_width=True,
+        )
+    with cols[2]:
+        st.button(
+            "⤢",
+            key=f"fullsize_{key}",
+            help="Open full size",
+            on_click=open_modal,
+            args=(key,),
+            use_container_width=True,
+        )
 
 
 def metric(label: str, value: str) -> str:
