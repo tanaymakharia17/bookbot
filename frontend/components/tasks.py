@@ -5,7 +5,7 @@ import streamlit as st
 from mock_backend import TASK_CATALOG
 
 
-def render_task_list(api, sub: dict) -> None:
+def render_task_list(api, sub: dict, prefix: str = "") -> None:
     proj = sub["projected"]
     tasks = proj["tasks"]
     done = sum(1 for t in tasks if t["done"])
@@ -27,7 +27,7 @@ def render_task_list(api, sub: dict) -> None:
     if not tasks:
         st.caption("No action items yet.")
     for task in tasks:
-        _task_row(api, sub, task, read_only, task["id"] in pending_ids)
+        _task_row(api, sub, task, read_only, task["id"] in pending_ids, prefix)
 
     if read_only:
         return
@@ -36,26 +36,26 @@ def render_task_list(api, sub: dict) -> None:
         col1, col2 = st.columns([3, 1], vertical_alignment="bottom")
         with col1:
             custom = st.text_input(
-                "Custom task", key="new_task_title", label_visibility="collapsed",
+                "Custom task", key=f"{prefix}new_task_title", label_visibility="collapsed",
                 placeholder="Custom task…",
             )
         with col2:
-            if st.button("Add", key="add_task_btn", use_container_width=True):
+            if st.button("Add", key=f"{prefix}add_task_btn", use_container_width=True):
                 if custom.strip():
                     _stage(api, sub, "stage_task_add", title=custom.strip())
-        quick = st.selectbox("From catalog", ["— choose —"] + TASK_CATALOG, key="quick_task")
-        if quick != "— choose —" and st.button("Add selected action", key="add_quick"):
+        quick = st.selectbox("From catalog", ["— choose —"] + TASK_CATALOG, key=f"{prefix}quick_task")
+        if quick != "— choose —" and st.button("Add selected action", key=f"{prefix}add_quick"):
             _stage(api, sub, "stage_task_add", title=quick)
 
 
-def _task_row(api, sub: dict, task: dict, read_only: bool, pending: bool) -> None:
+def _task_row(api, sub: dict, task: dict, read_only: bool, pending: bool, prefix: str = "") -> None:
     cols = st.columns([0.12, 0.78, 0.1], vertical_alignment="center")
 
     with cols[0]:
         if read_only:
             st.markdown("☑" if task["done"] else "☐")
         else:
-            if st.button("☑" if task["done"] else "☐", key=f"tgl_{task['id']}"):
+            if st.button("☑" if task["done"] else "☐", key=f"{prefix}tgl_{task['id']}"):
                 _stage(api, sub, "stage_task_toggle", task_id=task["id"], done=not task["done"])
 
     with cols[1]:
@@ -71,7 +71,7 @@ def _task_row(api, sub: dict, task: dict, read_only: bool, pending: bool) -> Non
         )
 
     with cols[2]:
-        if not read_only and st.button("✕", key=f"rm_{task['id']}"):
+        if not read_only and st.button("✕", key=f"{prefix}rm_{task['id']}"):
             _stage(api, sub, "stage_task_remove", task_id=task["id"])
 
 

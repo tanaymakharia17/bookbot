@@ -7,7 +7,7 @@ from components.status_badge import badge
 from components.tables import balance_banner, journal_html, line_items_html
 from components.ui import section_bar
 from config import DEFAULT_CAPEX_THRESHOLD
-from state import go, is_collapsed
+from state import close_modal, current_modal, go, is_collapsed
 
 
 def render() -> None:
@@ -50,6 +50,10 @@ def render() -> None:
     with right:
         _render_chat_pane(sub, api)
         _render_actions_pane(sub, api)
+
+    modal = current_modal()
+    if modal in SECTION_TITLES:
+        _open_section_modal(modal, api, sub, client_name, threshold)
 
 
 def _inject_locked_layout() -> None:
@@ -202,32 +206,50 @@ def _render_sot_pane(sub: dict, client_name: str, threshold: float) -> None:
         section_bar("Source of Truth", "sot")
         if is_collapsed("sot"):
             return
-        if sub["projected"].get("has_pending"):
-            _pending_banner("Projected result of the pending plan — not committed yet.")
+        _sot_content(sub, client_name, threshold)
+
+
+def _sot_content(sub: dict, client_name: str, threshold: float, full: bool = False) -> None:
+    if sub["projected"].get("has_pending"):
+        _pending_banner("Projected result of the pending plan — not committed yet.")
+    if full:
+        sot_document.render(_view_sub(sub), client_name, threshold)
+    else:
         with st.container(key="sot_pane", height=320):
             sot_document.render(_view_sub(sub), client_name, threshold)
 
 
 def _render_final_pane(api, sub: dict, threshold: float) -> None:
-    proj = sub["projected"]
     with st.container(border=True, key="final_card"):
         section_bar("Final data", "final")
         if is_collapsed("final"):
             return
-        if proj.get("has_pending"):
-            _pending_banner("Projected result of the pending plan — not committed yet.")
-        with st.container(key="final_pane", height=320):
-            st.markdown("<div class='bb-doc-label'>Line items</div>", unsafe_allow_html=True)
-            st.markdown(line_items_html(proj["line_items"], threshold), unsafe_allow_html=True)
+        _final_content(api, sub, threshold)
 
-            st.markdown("<div class='bb-doc-label' style='margin-top:18px'>Journal entry</div>",
-                        unsafe_allow_html=True)
-            entry = sub.get("journal_entry") or api.preview_journal(sub["id"])
-            if not entry:
-                st.info("No business line items to post yet.")
-            else:
-                st.markdown(journal_html(entry), unsafe_allow_html=True)
-                st.markdown(balance_banner(entry), unsafe_allow_html=True)
+
+def _final_content(api, sub: dict, threshold: float, full: bool = False) -> None:
+    proj = sub["projected"]
+    if proj.get("has_pending"):
+        _pending_banner("Projected result of the pending plan — not committed yet.")
+
+    def body() -> None:
+        st.markdown("<div class='bb-doc-label'>Line items</div>", unsafe_allow_html=True)
+        st.markdown(line_items_html(proj["line_items"], threshold), unsafe_allow_html=True)
+
+        st.markdown("<div class='bb-doc-label' style='margin-top:18px'>Journal entry</div>",
+                    unsafe_allow_html=True)
+        entry = sub.get("journal_entry") or api.preview_journal(sub["id"])
+        if not entry:
+            st.info("No business line items to post yet.")
+        else:
+            st.markdown(journal_html(entry), unsafe_allow_html=True)
+            st.markdown(balance_banner(entry), unsafe_allow_html=True)
+
+    if full:
+        body()
+    else:
+        with st.container(key="final_pane", height=320):
+            body()
 
 
 def _render_chat_pane(sub: dict, api) -> None:
@@ -235,52 +257,63 @@ def _render_chat_pane(sub: dict, api) -> None:
         section_bar("Chat", "chat")
         if is_collapsed("chat"):
             return
-        pending = st.session_state.get("_pending_msg")
+        _chat_content(sub, api)
 
+
+def _chat_content(sub: dict, api, full: bool = False, prefix: str = "") -> None:
+    pending = st.session_state.get("_pending_msg")
+
+    def body() -> None:
+        _render_attach_staging(sub, api, prefix)
+
+        history = api.chat_history(sub["id"])
+        if not history and not pending:
+            st.info("No conversation yet.")
+        for msg in history:
+            avatar = "🤖" if msg["role"] == "agent" else "🧑‍💼"
+            with st.chat_message("assistant" if msg["role"] == "agent" else "user", avatar=avatar):
+                st.markdown(msg["content"])
+
+        if pending:
+            with st.chat_message("user", avatar="🧑‍💼"):
+                st.markdown(pending)
+            with st.chat_message("assistant", avatar="🤖"):
+                with st.spinner("Agent is thinking…"):
+                    try:
+                        result = api.chat(sub["id"], pending)
+                    except Exception as exc:  # noqa: BLE001
+                        result = {"error": str(exc)}
+                if result.get("error"):
+                    st.toast(result["error"], icon="⚠️")
+            st.session_state.pop("_pending_msg", None)
+            st.rerun(scope="app")
+
+        plan_component.render_plan(api, sub, prefix)
+
+    if full:
+        body()
+    else:
         with st.container(key="chat_scroll", height=360):
-            _render_attach_staging(sub, api)
+            body()
 
-            history = api.chat_history(sub["id"])
-            if not history and not pending:
-                st.info("No conversation yet.")
-            for msg in history:
-                avatar = "🤖" if msg["role"] == "agent" else "🧑‍💼"
-                with st.chat_message("assistant" if msg["role"] == "agent" else "user", avatar=avatar):
-                    st.markdown(msg["content"])
-
-            if pending:
-                with st.chat_message("user", avatar="🧑‍💼"):
-                    st.markdown(pending)
-                with st.chat_message("assistant", avatar="🤖"):
-                    with st.spinner("Agent is thinking…"):
-                        try:
-                            result = api.chat(sub["id"], pending)
-                        except Exception as exc:  # noqa: BLE001
-                            result = {"error": str(exc)}
-                    if result.get("error"):
-                        st.toast(result["error"], icon="⚠️")
-                st.session_state.pop("_pending_msg", None)
-                st.rerun()
-
-            plan_component.render_plan(api, sub)
-
-        if sub["state"] != "COMMITTED":
-            value = st.chat_input(
-                "Message the agent, or attach documents…",
-                accept_file="multiple",
-                disabled=bool(pending),
-            )
-            if value:
-                text = getattr(value, "text", "") or ""
-                files = list(getattr(value, "files", []) or [])
-                if files:
-                    st.session_state["_staged_files"] = files
-                if text.strip():
-                    st.session_state["_pending_msg"] = text.strip()
-                st.rerun()
+    if sub["state"] != "COMMITTED":
+        value = st.chat_input(
+            "Message the agent, or attach documents…",
+            accept_file="multiple",
+            disabled=bool(pending),
+            key=f"{prefix}chat_input",
+        )
+        if value:
+            text = getattr(value, "text", "") or ""
+            files = list(getattr(value, "files", []) or [])
+            if files:
+                st.session_state["_staged_files"] = files
+            if text.strip():
+                st.session_state["_pending_msg"] = text.strip()
+            st.rerun(scope="app")
 
 
-def _render_attach_staging(sub: dict, api) -> None:
+def _render_attach_staging(sub: dict, api, prefix: str = "") -> None:
     staged = st.session_state.get("_staged_files") or []
     if not staged:
         return
@@ -293,21 +326,21 @@ def _render_attach_staging(sub: dict, api) -> None:
         )
         flags = {}
         for i, f in enumerate(staged):
-            flags[i] = st.checkbox(f.name, value=True, key=f"savefile_{i}_{f.name}")
+            flags[i] = st.checkbox(f.name, value=True, key=f"{prefix}savefile_{i}_{f.name}")
 
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("Stage files", type="primary", use_container_width=True, key="stage_files_btn"):
+            if st.button("Stage files", type="primary", use_container_width=True, key=f"{prefix}stage_files_btn"):
                 payload = [{"name": f.name, "save": flags[i]} for i, f in enumerate(staged)]
                 result = api.stage_files(sub["id"], payload)
                 if result.get("error"):
                     st.toast(result["error"], icon="⚠️")
                 st.session_state.pop("_staged_files", None)
-                st.rerun()
+                st.rerun(scope="app")
         with c2:
-            if st.button("Cancel", use_container_width=True, key="cancel_files_btn"):
+            if st.button("Cancel", use_container_width=True, key=f"{prefix}cancel_files_btn"):
                 st.session_state.pop("_staged_files", None)
-                st.rerun()
+                st.rerun(scope="app")
 
 
 def _render_actions_pane(sub: dict, api) -> None:
@@ -315,49 +348,84 @@ def _render_actions_pane(sub: dict, api) -> None:
         section_bar("Actions", "actions")
         if is_collapsed("actions"):
             return
+        _actions_content(sub, api)
+
+
+def _actions_content(sub: dict, api, full: bool = False, prefix: str = "") -> None:
+    if full:
+        tasks_component.render_task_list(api, sub, prefix)
+    else:
         with st.container(key="actions_scroll", height=240):
-            tasks_component.render_task_list(api, sub)
-        _render_actions(sub, api)
+            tasks_component.render_task_list(api, sub, prefix)
+    _render_actions(sub, api, prefix)
 
 
 def _pending_banner(text: str) -> None:
     st.markdown(f"<div class='bb-pending-banner'>⏳ {text}</div>", unsafe_allow_html=True)
 
 
-def _render_actions(sub: dict, api) -> None:
+def _render_actions(sub: dict, api, prefix: str = "") -> None:
     state = sub["state"]
     has_pending = sub["projected"].get("has_pending")
 
     if state == "COMMITTED":
         st.success("Posted to the ledger.", icon="✅")
-        if st.button("View in ledger →", use_container_width=True, key="go_ledger_from_chat"):
+        if st.button("View in ledger →", use_container_width=True, key=f"{prefix}go_ledger_from_chat"):
             entry = sub.get("journal_entry") or {}
             go("ledger", client_id=sub["client_id"], highlighted=entry.get("id"))
         return
 
     if state == "BLOCKED_COMPLIANCE":
         st.error(sub.get("blocker", "Blocked on compliance."))
-        if st.button("Mark compliance resolved", use_container_width=True, key="resolve_compliance"):
+        if st.button("Mark compliance resolved", use_container_width=True, key=f"{prefix}resolve_compliance"):
             result = api.resolve_compliance(sub["id"])
             if result.get("error"):
                 st.toast(result["error"], icon="⚠️")
-            st.rerun()
+            st.rerun(scope="app")
         return
 
     if st.button(
         "✅ Approve & Post to Ledger",
         type="primary",
         use_container_width=True,
-        key="approve_post",
+        key=f"{prefix}approve_post",
         disabled=bool(has_pending),
     ):
         result = api.approve(sub["id"])
         if result.get("error"):
             st.error(result["error"])
         else:
-            st.rerun()
+            st.rerun(scope="app")
     if has_pending:
         st.markdown(
             "<div class='bb-muted'>Execute or discard the pending plan to enable posting.</div>",
             unsafe_allow_html=True,
         )
+
+
+# ---------------------------------------------------------------------------
+# Full-size section modal
+# ---------------------------------------------------------------------------
+
+SECTION_TITLES = {
+    "sot": "Source of Truth",
+    "final": "Final data",
+    "chat": "Chat",
+    "actions": "Actions",
+}
+
+
+def _modal_body(name: str, api, sub: dict, client_name: str, threshold: float) -> None:
+    if name == "sot":
+        _sot_content(sub, client_name, threshold, full=True)
+    elif name == "final":
+        _final_content(api, sub, threshold, full=True)
+    elif name == "chat":
+        _chat_content(sub, api, full=True, prefix="modal_")
+    elif name == "actions":
+        _actions_content(sub, api, full=True, prefix="modal_")
+
+
+def _open_section_modal(name: str, api, sub: dict, client_name: str, threshold: float) -> None:
+    dialog = st.dialog(SECTION_TITLES[name], width="large", on_dismiss=close_modal)(_modal_body)
+    dialog(name, api, sub, client_name, threshold)

@@ -3,7 +3,7 @@ import html
 import streamlit as st
 
 
-def render_plan(api, sub: dict) -> bool:
+def render_plan(api, sub: dict, prefix: str = "") -> bool:
     labels = sub.get("plan_labels") or []
     if not labels:
         return False
@@ -22,19 +22,19 @@ def render_plan(api, sub: dict) -> bool:
                     unsafe_allow_html=True,
                 )
             with cols[1]:
-                if st.button("✕", key=f"rmop_{item['id']}"):
+                if st.button("✕", key=f"{prefix}rmop_{item['id']}"):
                     api.remove_plan_op(sub["id"], item["id"])
                     st.rerun()
 
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("▶ Execute plan", type="primary", use_container_width=True, key="execute_plan"):
+            if st.button("▶ Execute plan", type="primary", use_container_width=True, key=f"{prefix}execute_plan"):
                 result = api.execute_plan(sub["id"])
                 if result.get("error"):
                     st.toast(result["error"], icon="⚠️")
                 st.rerun()
         with c2:
-            if st.button("Discard", use_container_width=True, key="discard_plan"):
+            if st.button("Discard", use_container_width=True, key=f"{prefix}discard_plan"):
                 api.discard_plan(sub["id"])
                 st.rerun()
     return True
