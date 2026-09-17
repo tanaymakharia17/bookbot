@@ -278,7 +278,7 @@ def read_documents(paths: list[Path]) -> dict[str, Any] | None:
                 ],
                 temperature=0,
                 max_tokens=4000,
-                extra_body={"reasoning": {"effort": "low"}},
+                extra_body={"reasoning": {"enabled": False}},
             )
             return _coerce(
                 _parse_json(completion.choices[0].message.content or ""),
@@ -358,6 +358,6 @@ def inspect_document(path: Path, question: str) -> str:
         messages=[{"role": "user", "content": content}],
         temperature=0,
         max_tokens=800,
-        extra_body={"reasoning": {"effort": "low"}},
+        extra_body={"reasoning": {"enabled": False}},
     )
     return (completion.choices[0].message.content or "").strip()

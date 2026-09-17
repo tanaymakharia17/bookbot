@@ -30,6 +30,17 @@ class ContextLimitReached(Exception):
     """Raised when a submission's chat context or token budget is exhausted."""
 
 
+# Our stored roles are "cpa"/"agent"; the chat API only accepts these.
+_API_ROLE = {
+    "cpa": "user",
+    "agent": "assistant",
+    "user": "user",
+    "assistant": "assistant",
+    "system": "system",
+    "tool": "tool",
+}
+
+
 def estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
     """Approximate token count for a message list (chars / chars-per-token)."""
     chars = 0
@@ -94,7 +105,8 @@ def _llm_respond(submission, message: str) -> str:
     ]
     # Full conversation history — this submission's chat is one continuous session.
     for past in (submission.chat_messages or []):
-        messages.append({"role": past["role"], "content": past["content"]})
+        role = _API_ROLE.get(str(past.get("role", "")).lower(), "user")
+        messages.append({"role": role, "content": past.get("content", "")})
     messages.append({"role": "user", "content": message})
 
     applied: list[str] = []
@@ -122,6 +134,7 @@ def _llm_respond(submission, message: str) -> str:
             temperature=0.2,
             max_tokens=800,
             extra_headers={"X-Session-Id": str(submission.id)},
+            extra_body={"reasoning": {"enabled": False}},
         )
         if completion.usage and completion.usage.total_tokens:
             submission.tokens_used += int(completion.usage.total_tokens)
